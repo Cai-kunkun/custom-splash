@@ -2,14 +2,6 @@
 
 A Fabric mod that replaces or extends the Minecraft title screen yellow splash text.
 
-## Adding to your project
-
-```gradle
-dependencies {
-    modImplementation 'com.github.arrbrants:custom-splash:1.0.0'
-}
-```
-
 ## Usage
 
 Call `SplashRegistry.add(String)` during mod initialization (or any time before the title screen renders).
