@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"package": "dev.arrbrants.customsplash.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"SplashManagerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
