@@ -3,13 +3,14 @@
 	"id": "custom-splash",
 	"version": "${version}",
 	"name": "Custom Splash",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "A mod that extends splash texts.",
 	"authors": [
 		"ArrBrants"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/Cai-kunkun/custom-splash",
+		"sources": "https://github.com/Cai-kunkun/custom-splash",
+		"issues": "https://github.com/Cai-kunkun/custom-splash/issues"
 	},
 	"icon": "assets/customsplash/icon.png",
 	"environment": "*",
@@ -22,9 +23,9 @@
 		"customsplash.mixins.json"
 	],
 	"depends": {
-		"fabricloader": ">=0.19.3",
-		"minecraft": "~26.2",
-		"java": ">=25",
+		"fabricloader": "*",
+		"minecraft": "*",
+		"java": "*",
 		"fabric-api": "*"
 	}
 }
