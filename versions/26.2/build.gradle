@@ -3,7 +3,11 @@ plugins {
 	id 'maven-publish'
 }
 
-version = "${rootProject.mod_version}+mc${minecraft_version}"
+def gitCommit = providers.exec {
+	commandLine 'git', 'rev-parse', '--short=8', 'HEAD'
+}.standardOutput.asText.getOrElse('').trim()
+
+version = "${rootProject.mod_version}+mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
 group = rootProject.maven_group
 base.archivesName = "custom-splash-${minecraft_version}"
 
