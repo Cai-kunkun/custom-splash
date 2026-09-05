@@ -45,19 +45,25 @@ jobs:
         with:
           name: Artifacts
           path: build/releases/
-      - name: compute version metadata
+      - name: compute mod version
+        run: echo "MOD_VERSION=$(grep -E '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_ENV"
+      - name: publish github release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$MOD_VERSION-build${{ github.run_number }}" build/releases/*.jar --title "Custom Splash $MOD_VERSION (build ${{ github.run_number }})" --prerelease --generate-notes
+      - name: publish to modrinth
+        if: ${{ secrets.MODRINTH_TOKEN != '' }}
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          MODRINTH_ID: ${{ vars.MODRINTH_ID }}
         run: |
-          echo "MOD_VERSION=$(grep -E '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_ENV"
-          echo "SHORT_SHA=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
-      - name: publish github release and modrinth
-        uses: Kir-Antipov/mc-publish@v3.3.1
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          github-tag: ${{ env.MOD_VERSION }}-build${{ github.run_number }}
-          github-prerelease: true
-          github-generate-release-notes: true
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          modrinth-id: ${{ vars.MODRINTH_ID }}
-          version: ${{ env.MOD_VERSION }}+${{ env.SHORT_SHA }}
-          version-type: alpha
-          files: build/releases/*.jar
+          for file in build/releases/*.jar; do
+            meta=$(unzip -p "$file" fabric.mod.json)
+            version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['version'])")
+            mc_version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['depends']['minecraft'].lstrip('='))")
+            echo "publishing $file for Minecraft $mc_version as $version"
+            curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
+              -H "Authorization: $MODRINTH_TOKEN" \
+              -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":[\"$mc_version\"],\"loaders\":[\"fabric\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
+              -F "file=@$file;type=application/java-archive"
+          done
