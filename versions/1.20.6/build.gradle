@@ -1,0 +1,37 @@
+plugins {
+	id 'fabric-loom' version '1.8-SNAPSHOT'
+	id 'maven-publish'
+}
+
+version = "${rootProject.mod_version}+mc${minecraft_version}"
+group = rootProject.maven_group
+base.archivesName = "custom-splash-${minecraft_version}"
+
+dependencies {
+	minecraft "com.mojang:minecraft:${minecraft_version}"
+	mappings loom.officialMojangMappings()
+	modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+}
+
+processResources {
+	inputs.property 'version', project.version
+	inputs.property 'minecraft_version', minecraft_version
+	filesMatching('fabric.mod.json') {
+		expand version: project.version, minecraft_version: minecraft_version, loader_version: loader_version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = Integer.parseInt(java_version)
+}
+
+java {
+	withSourcesJar()
+}
+
+jar {
+	from(rootProject.file('LICENSE')) {
+		rename { "${it}_${base.archivesName.get()}" }
+	}
+}
