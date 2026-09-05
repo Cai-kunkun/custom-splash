@@ -27,14 +27,24 @@ tasks.register('buildAll') {
 	dependsOn versionBuilds
 }
 
-tasks.register('collectJars', Copy) {
+def readVersionProperty = { String versionDir, String key ->
+	def properties = new Properties()
+	file("${versionDir}/gradle.properties").withInputStream { properties.load(it) }
+	properties.getProperty(key)
+}
+
+tasks.register('collectJars', Sync) {
 	group = 'build'
 	description = 'Collects all remapped version jars into build/releases.'
 	dependsOn versionBuilds
-	from(minecraftVersions.collect { file("versions/${it}/build/libs") }) {
-		exclude '*-sources.jar'
-	}
 	into layout.buildDirectory.dir('releases')
+	minecraftVersions.each { minecraftVersion ->
+		def modVersion = readVersionProperty("versions/${minecraftVersion}", 'mod_version')
+		from(fileTree("versions/${minecraftVersion}/build/libs")) {
+			include "custom-splash-${minecraftVersion}-${modVersion}+mc${minecraftVersion}*.jar"
+			exclude '*-sources.jar'
+		}
+	}
 }
 
 tasks.named('build') {
