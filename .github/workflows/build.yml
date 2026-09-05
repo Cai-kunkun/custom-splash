@@ -56,6 +56,7 @@ jobs:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           MODRINTH_ID: ${{ vars.MODRINTH_ID }}
         run: |
+          set -euo pipefail
           if [ -z "$MODRINTH_TOKEN" ] || [ -z "$MODRINTH_ID" ]; then
             echo "Modrinth token or project id not configured, skipping"
             exit 0
