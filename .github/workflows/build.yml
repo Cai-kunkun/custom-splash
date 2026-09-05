@@ -52,11 +52,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$MOD_VERSION-build${{ github.run_number }}" build/releases/*.jar --title "Custom Splash $MOD_VERSION (build ${{ github.run_number }})" --prerelease --generate-notes
       - name: publish to modrinth
-        if: ${{ secrets.MODRINTH_TOKEN != '' }}
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           MODRINTH_ID: ${{ vars.MODRINTH_ID }}
         run: |
+          if [ -z "$MODRINTH_TOKEN" ] || [ -z "$MODRINTH_ID" ]; then
+            echo "Modrinth token or project id not configured, skipping"
+            exit 0
+          fi
           for file in build/releases/*.jar; do
             meta=$(unzip -p "$file" fabric.mod.json)
             version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['version'])")
