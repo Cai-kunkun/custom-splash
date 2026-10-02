@@ -383,6 +383,7 @@ public final class SplashRegistry {
 \tprivate static final List<SplashEntry> REGISTERED = Collections.synchronizedList(new ArrayList<SplashEntry>());
 \tprivate static final Random RNG = new Random();
 \tprivate static volatile SplashConfig config = new SplashConfig();
+\tprivate static volatile List<SplashEntry> resourcePackEntries = Collections.emptyList();
 
 \tprivate SplashRegistry() {
 \t}
@@ -434,6 +435,11 @@ public final class SplashRegistry {
 \t\t\t\ttexts.add(entry.text);
 \t\t\t}
 \t\t}
+\t\tfor (SplashEntry entry : resourcePackEntries) {
+\t\t\tif (entry != null && !entry.isBlank()) {
+\t\t\t\ttexts.add(entry.text);
+\t\t\t}
+\t\t}
 \t\tsynchronized (REGISTERED) {
 \t\t\tfor (SplashEntry entry : REGISTERED) {
 \t\t\t\tif (!entry.isBlank()) {
@@ -471,6 +477,11 @@ public final class SplashRegistry {
 \t\t\t\tpool.add(entry);
 \t\t\t}
 \t\t}
+\t\tfor (SplashEntry entry : resourcePackEntries) {
+\t\t\tif (entry != null && !entry.isBlank() && entry.matches(context)) {
+\t\t\t\tpool.add(entry);
+\t\t\t}
+\t\t}
 \t\tsynchronized (REGISTERED) {
 \t\t\tfor (SplashEntry entry : REGISTERED) {
 \t\t\t\tif (!entry.isBlank() && entry.matches(context)) {
@@ -502,6 +513,7 @@ public final class SplashRegistry {
 \t */
 \tpublic static void reload() {
 \t\tconfig = SplashConfig.load(CONFIG_PATH, GSON);
+\t\tresourcePackEntries = SplashResourcePack.load();
 \t}
 
 \t/**
@@ -527,6 +539,129 @@ public final class SplashRegistry {
 \t\t\tthis.text = text;
 \t\t\tthis.rgb = rgb;
 \t\t}
+\t}
+}
+'''
+
+SOURCES["SplashResourcePack.java"] = '''package dev.arrbrants.customsplash;
+
+import com.google.gson.Gson;
+import net.fabricmc.loader.api.FabricLoader;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+/**
+ * Reads splash texts from enabled resource packs.
+ *
+ * <p>A pack may provide {@code assets/custom-splash/splashes.txt}; every
+ * non-empty line that does not start with {@code #} becomes a splash text.</p>
+ */
+public final class SplashResourcePack {
+\tprivate static final Logger LOGGER = Logger.getLogger("custom-splash");
+\tprivate static final Gson GSON = new Gson();
+\tprivate static final String PACK_FILE = "assets/custom-splash/splashes.txt";
+
+\tprivate SplashResourcePack() {
+\t}
+
+\tstatic List<SplashEntry> load() {
+\t\tPath gameDir = FabricLoader.getInstance().getGameDir();
+\t\tPath packsDir = gameDir.resolve("resourcepacks");
+\t\tif (!Files.isDirectory(packsDir)) {
+\t\t\treturn Collections.emptyList();
+\t\t}
+\t\tList<SplashEntry> entries = new ArrayList<>();
+\t\tfor (String name : enabledPacks(gameDir)) {
+\t\t\tfor (String line : readLines(packsDir.resolve(name))) {
+\t\t\t\tString text = line.trim();
+\t\t\t\tif (!text.isEmpty() && !text.startsWith("#")) {
+\t\t\t\t\tSplashEntry entry = new SplashEntry();
+\t\t\t\t\tentry.text = text;
+\t\t\t\t\tentries.add(entry);
+\t\t\t\t}
+\t\t\t}
+\t\t}
+\t\treturn entries;
+\t}
+
+\tprivate static List<String> enabledPacks(Path gameDir) {
+\t\tPath options = gameDir.resolve("options.txt");
+\t\ttry {
+\t\t\tfor (String line : Files.readAllLines(options, StandardCharsets.UTF_8)) {
+\t\t\t\tif (line.startsWith("resourcePacks:")) {
+\t\t\t\t\tString[] names = GSON.fromJson(line.substring("resourcePacks:".length()).trim(), String[].class);
+\t\t\t\t\tif (names == null) {
+\t\t\t\t\t\treturn Collections.emptyList();
+\t\t\t\t\t}
+\t\t\t\t\tList<String> result = new ArrayList<>();
+\t\t\t\t\tfor (String name : names) {
+\t\t\t\t\t\tif (name == null || name.isEmpty()) {
+\t\t\t\t\t\t\tcontinue;
+\t\t\t\t\t\t}
+\t\t\t\t\t\tresult.add(name.startsWith("file/") ? name.substring("file/".length()) : name);
+\t\t\t\t\t}
+\t\t\t\t\treturn result;
+\t\t\t\t}
+\t\t\t}
+\t\t} catch (IOException | RuntimeException exception) {
+\t\t\tLOGGER.log(Level.FINE, "Could not read enabled resource packs", exception);
+\t\t}
+\t\treturn Collections.emptyList();
+\t}
+
+\tprivate static List<String> readLines(Path pack) {
+\t\ttry {
+\t\t\tif (Files.isDirectory(pack)) {
+\t\t\t\tPath file = pack.resolve(PACK_FILE);
+\t\t\t\treturn Files.isRegularFile(file)
+\t\t\t\t\t\t? Files.readAllLines(file, StandardCharsets.UTF_8)
+\t\t\t\t\t\t: Collections.emptyList();
+\t\t\t}
+\t\t\tif (Files.isRegularFile(pack)) {
+\t\t\t\ttry (ZipFile zip = new ZipFile(pack.toFile())) {
+\t\t\t\t\tZipEntry entry = zip.getEntry(PACK_FILE);
+\t\t\t\t\tif (entry == null) {
+\t\t\t\t\t\treturn Collections.emptyList();
+\t\t\t\t\t}
+\t\t\t\t\ttry (InputStream stream = zip.getInputStream(entry)) {
+\t\t\t\t\t\treturn splitLines(readAll(stream));
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t}
+\t\t} catch (IOException | RuntimeException exception) {
+\t\t\tLOGGER.log(Level.FINE, "Could not read resource pack " + pack, exception);
+\t\t}
+\t\treturn Collections.emptyList();
+\t}
+
+\tprivate static List<String> splitLines(byte[] data) {
+\t\tList<String> lines = new ArrayList<>();
+\t\tfor (String line : new String(data, StandardCharsets.UTF_8).split("\\\\r?\\\\n")) {
+\t\t\tlines.add(line);
+\t\t}
+\t\treturn lines;
+\t}
+
+\tprivate static byte[] readAll(InputStream stream) throws IOException {
+\t\tByteArrayOutputStream buffer = new ByteArrayOutputStream();
+\t\tbyte[] chunk = new byte[8192];
+\t\tint read;
+\t\twhile ((read = stream.read(chunk)) != -1) {
+\t\t\tbuffer.write(chunk, 0, read);
+\t\t}
+\t\treturn buffer.toByteArray();
 \t}
 }
 '''
