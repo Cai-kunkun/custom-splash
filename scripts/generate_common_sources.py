@@ -680,6 +680,26 @@ public final class SplashResourcePack {
 }
 '''
 
+MIXIN_YARN = '''package dev.arrbrants.customsplash.mixin;
+
+import dev.arrbrants.customsplash.SplashColors;
+import dev.arrbrants.customsplash.SplashRegistry;
+import net.minecraft.client.resource.SplashTextResourceSupplier;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(SplashTextResourceSupplier.class)
+public class SplashManagerMixin {
+\t@Inject(at = @At("HEAD"), method = "get", cancellable = true)
+\tprivate void get(CallbackInfoReturnable<String> cir) {
+\t\tSplashRegistry.pickEntry().ifPresent(picked ->
+\t\t\t\tcir.setReturnValue(picked.rgb >= 0 ? SplashColors.legacyPrefix(picked.rgb) + picked.text : picked.text));
+\t}
+}
+'''
+
 MIXIN_OLD = '''package dev.arrbrants.customsplash.mixin;
 
 import dev.arrbrants.customsplash.SplashColors;
@@ -751,7 +771,38 @@ public class SplashManagerMixin {
 
 def uses_legacy_mixin(version: str) -> bool:
     parts = version.split(".")
+    if parts[0] == "1" and int(parts[1]) == 14 and version not in ("1.14.4",):
+        return False  # Yarn-named mixin is selected separately.
     return parts[0] == "1" and int(parts[1]) <= 19
+
+
+def uses_yarn_mixin(version: str) -> bool:
+    """Yarn mappings name the splash supplier SplashTextResourceSupplier (1.14-1.14.3)."""
+    return version in ("1.14", "1.14.1", "1.14.2", "1.14.3")
+
+
+# Mojang only started publishing official mappings in 1.14.4, so the earliest
+# releases use Fabric's Yarn mappings instead.
+YARN_MAPPINGS = {
+    "1.14": "1.14+build.21",
+    "1.14.1": "1.14.1+build.10",
+    "1.14.2": "1.14.2+build.7",
+    "1.14.3": "1.14.3+build.13",
+}
+
+
+def configure_mappings(project: Path, version: str) -> None:
+    path = project / "build.gradle"
+    source = path.read_text()
+    yarn = YARN_MAPPINGS.get(version)
+    if yarn is not None:
+        source = source.replace(
+            "mappings loom.officialMojangMappings()",
+            "mappings loom.layered {\n"
+            "\t\t\tmappings(file(\"mappings/yarn.tiny\"))\n"
+            "\t\t}",
+        )
+    path.write_text(source)
 
 
 def main() -> None:
@@ -763,11 +814,14 @@ def main() -> None:
             raise SystemExit(f"missing version project: {project}")
         for name, content in SOURCES.items():
             (package_dir / name).write_text(content)
-        mixin = MIXIN_OLD if uses_legacy_mixin(version) else MIXIN_NEW
+        if uses_yarn_mixin(version):
+            mixin = MIXIN_YARN
+        else:
+            mixin = MIXIN_OLD if uses_legacy_mixin(version) else MIXIN_NEW
         (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(mixin)
+        configure_mappings(project, version)
         patch_initializer(project)
         print(f"updated {version}")
-
 
 def patch_initializer(project: Path) -> None:
     path = project / PACKAGE_DIR / "CustomSplash.java"
