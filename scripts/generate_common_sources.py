@@ -706,6 +706,8 @@ import dev.arrbrants.customsplash.SplashRegistry;
 import net.minecraft.client.gui.components.SplashRenderer;
 import net.minecraft.client.resources.SplashManager;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -722,9 +724,9 @@ public class SplashManagerMixin {
 \t}
 
 \tprivate static SplashRenderer createRenderer(SplashRegistry.Picked picked) {
-\t\tComponent component = Component.literal(picked.text);
+\t\tMutableComponent component = Component.literal(picked.text);
 \t\tif (picked.rgb >= 0) {
-\t\t\tcomponent = component.withStyle(style -> style.withColor(TextColor.fromRgb(picked.rgb)));
+\t\t\tcomponent = component.withStyle(Style.EMPTY.withColor(TextColor.fromRgb(picked.rgb)));
 \t\t}
 \t\ttry {
 \t\t\treturn SplashRenderer.class.getConstructor(Component.class).newInstance(component);
