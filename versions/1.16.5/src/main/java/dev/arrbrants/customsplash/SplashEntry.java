@@ -27,6 +27,13 @@ public final class SplashEntry {
 		return weight > 0 ? weight : 1;
 	}
 
+	/**
+	 * @return the parsed colour, or {@code -1} when unset/invalid
+	 */
+	public int rgb() {
+		return SplashColors.parse(color);
+	}
+
 	public boolean matches(SplashContext context) {
 		return conditions == null || conditions.matches(context);
 	}

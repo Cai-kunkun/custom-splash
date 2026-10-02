@@ -68,7 +68,8 @@ public final class SplashRegistry {
 	/**
 	 * @return an immutable view of every currently known text (config first).
 	 */
-	public static List<String> list() {		List<String> texts = new ArrayList<>();
+	public static List<String> list() {
+		List<String> texts = new ArrayList<>();
 		for (SplashEntry entry : config.splashes) {
 			if (entry != null && !entry.isBlank()) {
 				texts.add(entry.text);
@@ -97,6 +98,13 @@ public final class SplashRegistry {
 	 * @return a splash text, or empty when nothing is configured/matches
 	 */
 	public static Optional<String> pick() {
+		return pickEntry().map(picked -> picked.text);
+	}
+
+	/**
+	 * Pick a splash entry, keeping colour information for the renderer.
+	 */
+	public static Optional<Picked> pickEntry() {
 		SplashContext context = SplashContext.create();
 		List<SplashEntry> pool = new ArrayList<>();
 		for (SplashEntry entry : config.splashes) {
@@ -127,7 +135,7 @@ public final class SplashRegistry {
 				break;
 			}
 		}
-		return Optional.of(format(chosen.text, context));
+		return Optional.of(new Picked(format(chosen.text, context), chosen.rgb()));
 	}
 
 	/**
@@ -147,5 +155,18 @@ public final class SplashRegistry {
 	private static String format(String text, SplashContext context) {
 		String player = context.playerName();
 		return text.replace("{player}", player == null ? "player" : player);
+	}
+
+	/**
+	 * A chosen splash ready to be rendered.
+	 */
+	public static final class Picked {
+		public final String text;
+		public final int rgb;
+
+		Picked(String text, int rgb) {
+			this.text = text;
+			this.rgb = rgb;
+		}
 	}
 }

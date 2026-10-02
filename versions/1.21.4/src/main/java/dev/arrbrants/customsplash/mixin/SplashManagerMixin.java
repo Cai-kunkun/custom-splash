@@ -4,6 +4,7 @@ import dev.arrbrants.customsplash.SplashRegistry;
 import net.minecraft.client.gui.components.SplashRenderer;
 import net.minecraft.client.resources.SplashManager;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextColor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -15,15 +16,19 @@ import java.lang.reflect.InvocationTargetException;
 public class SplashManagerMixin {
 	@Inject(at = @At("HEAD"), method = "getSplash", cancellable = true)
 	private void getSplash(CallbackInfoReturnable<SplashRenderer> cir) {
-		SplashRegistry.pick().ifPresent(text -> cir.setReturnValue(createRenderer(text)));
+		SplashRegistry.pickEntry().ifPresent(picked -> cir.setReturnValue(createRenderer(picked)));
 	}
 
-	private static SplashRenderer createRenderer(String text) {
+	private static SplashRenderer createRenderer(SplashRegistry.Picked picked) {
+		Component component = Component.literal(picked.text);
+		if (picked.rgb >= 0) {
+			component = component.withStyle(style -> style.withColor(TextColor.fromRgb(picked.rgb)));
+		}
 		try {
-			return SplashRenderer.class.getConstructor(String.class).newInstance(text);
+			return SplashRenderer.class.getConstructor(Component.class).newInstance(component);
 		} catch (NoSuchMethodException ignored) {
 			try {
-				return SplashRenderer.class.getConstructor(Component.class).newInstance(Component.literal(text));
+				return SplashRenderer.class.getConstructor(String.class).newInstance(picked.text);
 			} catch (ReflectiveOperationException exception) {
 				throw new IllegalStateException("Unable to create splash renderer", unwrap(exception));
 			}

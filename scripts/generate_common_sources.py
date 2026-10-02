@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Synchronise the shared Custom Splash sources across every version project.
 
-Phase 1 features: JSON config file, weighted entries, display conditions and an
-extended public API. The generated sources contain no Minecraft compile-time
-references (player lookup is reflective), so the exact same files work on every
-supported version.
+Features implemented here: JSON config file, weighted entries, display
+conditions, colour support and an extended public API.
+
+The shared sources contain no Minecraft compile-time references (player lookup is
+reflective), so the exact same files work on every supported version. Only the
+mixin differs between the old ``String``-based splash API (1.16-1.19.4) and the
+``SplashRenderer`` API (1.20+).
 """
 
 from pathlib import Path
@@ -12,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VERSIONS_FILE = ROOT / "supported-versions.txt"
 PACKAGE_DIR = "src/main/java/dev/arrbrants/customsplash"
+MIXIN_DIR = PACKAGE_DIR + "/mixin"
 
 SOURCES = {}
 
@@ -98,6 +102,71 @@ final class SplashContext {
 }
 '''
 
+SOURCES["SplashColors.java"] = '''package dev.arrbrants.customsplash;
+
+/**
+ * Parses ``#RRGGBB`` colours and maps them onto the legacy 16-colour palette.
+ */
+public final class SplashColors {
+\tprivate static final int[] PALETTE = {
+\t\t0x000000, 0x0000AA, 0x00AA00, 0x00AAAA, 0xAA0000, 0xAA00AA, 0xFFAA00, 0xAAAAAA,
+\t\t0x555555, 0x5555FF, 0x55FF55, 0x55FFFF, 0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF
+\t};
+\tprivate static final char[] CODES = {
+\t\t'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+\t};
+
+\tprivate SplashColors() {
+\t}
+
+\t/**
+\t * @return the packed RGB value, or {@code -1} when the input is missing/invalid
+\t */
+\tpublic static int parse(String value) {
+\t\tif (value == null) {
+\t\t\treturn -1;
+\t\t}
+\t\tString hex = value.trim();
+\t\tif (hex.startsWith("#")) {
+\t\t\thex = hex.substring(1);
+\t\t}
+\t\tif (hex.length() != 6) {
+\t\t\treturn -1;
+\t\t}
+\t\ttry {
+\t\t\treturn Integer.parseInt(hex, 16);
+\t\t} catch (NumberFormatException exception) {
+\t\t\treturn -1;
+\t\t}
+\t}
+
+\tpublic static String legacyPrefix(int rgb) {
+\t\treturn "\\u00a7" + legacyCode(rgb);
+\t}
+
+\tpublic static char legacyCode(int rgb) {
+\t\tint red = (rgb >> 16) & 0xFF;
+\t\tint green = (rgb >> 8) & 0xFF;
+\t\tint blue = rgb & 0xFF;
+\t\tint best = 0;
+\t\tlong bestDistance = Long.MAX_VALUE;
+\t\tfor (int i = 0; i < PALETTE.length; i++) {
+\t\t\tint r = (PALETTE[i] >> 16) & 0xFF;
+\t\t\tint g = (PALETTE[i] >> 8) & 0xFF;
+\t\t\tint b = PALETTE[i] & 0xFF;
+\t\t\tlong distance = (long) (red - r) * (red - r)
+\t\t\t\t+ (long) (green - g) * (green - g)
+\t\t\t\t+ (long) (blue - b) * (blue - b);
+\t\t\tif (distance < bestDistance) {
+\t\t\t\tbestDistance = distance;
+\t\t\t\tbest = i;
+\t\t\t}
+\t\t}
+\t\treturn CODES[best];
+\t}
+}
+'''
+
 SOURCES["SplashEntry.java"] = '''package dev.arrbrants.customsplash;
 
 import java.util.List;
@@ -125,6 +194,13 @@ public final class SplashEntry {
 
 \tpublic int weightOrDefault() {
 \t\treturn weight > 0 ? weight : 1;
+\t}
+
+\t/**
+\t * @return the parsed colour, or {@code -1} when unset/invalid
+\t */
+\tpublic int rgb() {
+\t\treturn SplashColors.parse(color);
 \t}
 
 \tpublic boolean matches(SplashContext context) {
@@ -351,7 +427,8 @@ public final class SplashRegistry {
 \t/**
 \t * @return an immutable view of every currently known text (config first).
 \t */
-\tpublic static List<String> list() {\t\tList<String> texts = new ArrayList<>();
+\tpublic static List<String> list() {
+\t\tList<String> texts = new ArrayList<>();
 \t\tfor (SplashEntry entry : config.splashes) {
 \t\t\tif (entry != null && !entry.isBlank()) {
 \t\t\t\ttexts.add(entry.text);
@@ -380,6 +457,13 @@ public final class SplashRegistry {
 \t * @return a splash text, or empty when nothing is configured/matches
 \t */
 \tpublic static Optional<String> pick() {
+\t\treturn pickEntry().map(picked -> picked.text);
+\t}
+
+\t/**
+\t * Pick a splash entry, keeping colour information for the renderer.
+\t */
+\tpublic static Optional<Picked> pickEntry() {
 \t\tSplashContext context = SplashContext.create();
 \t\tList<SplashEntry> pool = new ArrayList<>();
 \t\tfor (SplashEntry entry : config.splashes) {
@@ -410,7 +494,7 @@ public final class SplashRegistry {
 \t\t\t\tbreak;
 \t\t\t}
 \t\t}
-\t\treturn Optional.of(format(chosen.text, context));
+\t\treturn Optional.of(new Picked(format(chosen.text, context), chosen.rgb()));
 \t}
 
 \t/**
@@ -431,8 +515,92 @@ public final class SplashRegistry {
 \t\tString player = context.playerName();
 \t\treturn text.replace("{player}", player == null ? "player" : player);
 \t}
+
+\t/**
+\t * A chosen splash ready to be rendered.
+\t */
+\tpublic static final class Picked {
+\t\tpublic final String text;
+\t\tpublic final int rgb;
+
+\t\tPicked(String text, int rgb) {
+\t\t\tthis.text = text;
+\t\t\tthis.rgb = rgb;
+\t\t}
+\t}
 }
 '''
+
+MIXIN_OLD = '''package dev.arrbrants.customsplash.mixin;
+
+import dev.arrbrants.customsplash.SplashColors;
+import dev.arrbrants.customsplash.SplashRegistry;
+import net.minecraft.client.resources.SplashManager;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(SplashManager.class)
+public class SplashManagerMixin {
+\t@Inject(at = @At("HEAD"), method = "getSplash", cancellable = true)
+\tprivate void getSplash(CallbackInfoReturnable<String> cir) {
+\t\tSplashRegistry.pickEntry().ifPresent(picked ->
+\t\t\t\tcir.setReturnValue(picked.rgb >= 0 ? SplashColors.legacyPrefix(picked.rgb) + picked.text : picked.text));
+\t}
+}
+'''
+
+MIXIN_NEW = '''package dev.arrbrants.customsplash.mixin;
+
+import dev.arrbrants.customsplash.SplashRegistry;
+import net.minecraft.client.gui.components.SplashRenderer;
+import net.minecraft.client.resources.SplashManager;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextColor;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.lang.reflect.InvocationTargetException;
+
+@Mixin(SplashManager.class)
+public class SplashManagerMixin {
+\t@Inject(at = @At("HEAD"), method = "getSplash", cancellable = true)
+\tprivate void getSplash(CallbackInfoReturnable<SplashRenderer> cir) {
+\t\tSplashRegistry.pickEntry().ifPresent(picked -> cir.setReturnValue(createRenderer(picked)));
+\t}
+
+\tprivate static SplashRenderer createRenderer(SplashRegistry.Picked picked) {
+\t\tComponent component = Component.literal(picked.text);
+\t\tif (picked.rgb >= 0) {
+\t\t\tcomponent = component.withStyle(style -> style.withColor(TextColor.fromRgb(picked.rgb)));
+\t\t}
+\t\ttry {
+\t\t\treturn SplashRenderer.class.getConstructor(Component.class).newInstance(component);
+\t\t} catch (NoSuchMethodException ignored) {
+\t\t\ttry {
+\t\t\t\treturn SplashRenderer.class.getConstructor(String.class).newInstance(picked.text);
+\t\t\t} catch (ReflectiveOperationException exception) {
+\t\t\t\tthrow new IllegalStateException("Unable to create splash renderer", unwrap(exception));
+\t\t\t}
+\t\t} catch (ReflectiveOperationException exception) {
+\t\t\tthrow new IllegalStateException("Unable to create splash renderer", unwrap(exception));
+\t\t}
+\t}
+
+\tprivate static Throwable unwrap(ReflectiveOperationException exception) {
+\t\treturn exception instanceof InvocationTargetException && exception.getCause() != null
+\t\t\t\t? exception.getCause() : exception;
+\t}
+}
+'''
+
+
+def uses_legacy_mixin(version: str) -> bool:
+    parts = version.split(".")
+    return parts[0] == "1" and int(parts[1]) <= 19
 
 
 def main() -> None:
@@ -444,6 +612,8 @@ def main() -> None:
             raise SystemExit(f"missing version project: {project}")
         for name, content in SOURCES.items():
             (package_dir / name).write_text(content)
+        mixin = MIXIN_OLD if uses_legacy_mixin(version) else MIXIN_NEW
+        (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(mixin)
         patch_initializer(project)
         print(f"updated {version}")
 
