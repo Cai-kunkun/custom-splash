@@ -5,13 +5,13 @@ A Fabric mod that replaces or extends the Minecraft title screen yellow splash t
 ## Supported versions
 
 Each supported Minecraft version is an independent Gradle project under `versions/`.
-The current release set is:
+The [version list](supported-versions.txt) covers every stable release from **1.16 through 26.3** (40 versions, including all patch releases in between). Snapshots and pre-releases are not included. Adding a version requires both its directory and an entry in this list.
 
-`1.20.1`, `1.20.2`, `1.20.4`, `1.20.6`, `1.21`, `1.21.1`, `1.21.4`, `1.21.5`, `1.21.8`, `26.1`, and `26.2`.
-
-The 1.20.x and 1.21.x projects explicitly use `loom.officialMojangMappings()`.
-Minecraft 26.x is distributed in the official Mojang namespace already, so Loom
-must not apply the mappings a second time.
+Minecraft 1.16–1.21.x projects use `loom.officialMojangMappings()`; 26.x is
+distributed with official Mojang names already, so mappings must not be applied
+again. Versions before 1.20 use the `String`-returning splash API; newer versions
+use `SplashRenderer`. The public `SplashRegistry.add(String)` API is unchanged.
+Only Fabric Loader is required; Fabric API is not used by this mod.
 
 Build one version from its directory:
 
@@ -20,12 +20,15 @@ cd versions/1.20.1
 ./gradlew build
 ```
 
-Build every version and collect the remapped jars in `build/releases`:
+Build every version, check each JAR, and collect them in `build/releases`:
 
 ```sh
-./gradlew buildAll
-./gradlew collectJars
+./gradlew build
 ```
+
+For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCount=5`
+builds one of five non-overlapping groups. CI merges the groups and checks that
+all 40 versions were built before publishing.
 
 ## Usage
 

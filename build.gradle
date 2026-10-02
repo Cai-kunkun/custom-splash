@@ -1,11 +1,36 @@
+import groovy.json.JsonSlurper
+import java.util.zip.ZipFile
+
 plugins {
 	id 'base'
 }
 
-def minecraftVersions = [
-	'1.20.1', '1.20.2', '1.20.4', '1.20.6', '1.21', '1.21.1',
-	'1.21.4', '1.21.5', '1.21.8', '26.1', '26.2'
-]
+def allVersions = file('supported-versions.txt').readLines().findAll { it && !it.startsWith('#') }
+def projectVersions = file('versions').listFiles()
+	.findAll { it.isDirectory() && new File(it, 'build.gradle').isFile() }
+	.collect { it.name }
+if (allVersions.toSet().size() != allVersions.size() || projectVersions.toSet() != allVersions.toSet()) {
+	throw new GradleException('supported-versions.txt must list each version project exactly once')
+}
+
+def shard = providers.gradleProperty('buildShard').orNull
+def shardCount = providers.gradleProperty('buildShardCount').orNull
+if ((shard == null) != (shardCount == null)) {
+	throw new GradleException('Specify both buildShard and buildShardCount, or neither')
+}
+def minecraftVersions = allVersions
+if (shard != null) {
+	def index = Integer.parseInt(shard)
+	def count = Integer.parseInt(shardCount)
+	if (count < 1 || index < 0 || index >= count || count > allVersions.size()) {
+		throw new GradleException('Invalid build shard: buildShard must be in [0, buildShardCount)')
+	}
+	def size = (allVersions.size() + count - 1).intdiv(count)
+	minecraftVersions = allVersions.drop(index * size).take(size)
+}
+def gitCommit = providers.exec {
+	commandLine 'git', 'rev-parse', '--short=8', 'HEAD'
+}.standardOutput.asText.getOrElse('').trim()
 
 def versionBuilds = minecraftVersions.collect { minecraftVersion ->
 	tasks.register("buildMc${minecraftVersion.replace('.', '_')}", Exec) {
@@ -17,6 +42,7 @@ def versionBuilds = minecraftVersions.collect { minecraftVersion ->
 		inputs.files(fileTree(versionDirectory) {
 			include 'build.gradle', 'settings.gradle', 'gradle.properties', 'src/**'
 		})
+		inputs.property 'gitCommit', gitCommit
 		outputs.dir file("versions/${minecraftVersion}/build/libs")
 	}
 }
@@ -32,7 +58,6 @@ def readVersionProperty = { String versionDir, String key ->
 	file("${versionDir}/gradle.properties").withInputStream { properties.load(it) }
 	properties.getProperty(key)
 }
-
 tasks.register('collectJars', Sync) {
 	group = 'build'
 	description = 'Collects all remapped version jars into build/releases.'
@@ -41,12 +66,47 @@ tasks.register('collectJars', Sync) {
 	minecraftVersions.each { minecraftVersion ->
 		def modVersion = readVersionProperty("versions/${minecraftVersion}", 'mod_version')
 		from(fileTree("versions/${minecraftVersion}/build/libs")) {
-			include "custom-splash-${minecraftVersion}-${modVersion}+mc${minecraftVersion}*.jar"
-			exclude '*-sources.jar'
+			include "custom-splash-${minecraftVersion}-${modVersion}+mc${minecraftVersion}${gitCommit ? ".${gitCommit}" : ''}.jar"
+		}
+	}
+}
+
+tasks.register('verifyReleases') {
+	group = 'verification'
+	description = 'Checks that every selected version produced a valid mod jar.'
+	dependsOn tasks.named('collectJars')
+	doLast {
+		def releases = layout.buildDirectory.dir('releases').get().asFile
+		def jars = (releases.listFiles() ?: []).findAll { it.name.endsWith('.jar') }
+		if (jars.size() != minecraftVersions.size()) {
+			throw new GradleException("Expected ${minecraftVersions.size()} jars, found ${jars.size()}")
+		}
+		minecraftVersions.each { minecraftVersion ->
+			def modVersion = readVersionProperty("versions/${minecraftVersion}", 'mod_version')
+			def expectedName = "custom-splash-${minecraftVersion}-${modVersion}+mc${minecraftVersion}${gitCommit ? ".${gitCommit}" : ''}.jar"
+			def matches = jars.findAll { it.name == expectedName }
+			if (matches.size() != 1) {
+				throw new GradleException("Expected one jar for Minecraft ${minecraftVersion}, found ${matches.size()}")
+			}
+			new ZipFile(matches[0]).withCloseable { zip ->
+				def entry = zip.getEntry('fabric.mod.json')
+				if (entry == null) throw new GradleException("Missing fabric.mod.json in ${matches[0].name}")
+				if (zip.getEntry('dev/arrbrants/customsplash/SplashRegistry.class') == null) {
+					throw new GradleException("Missing SplashRegistry class in ${matches[0].name}")
+				}
+				if (zip.getEntry('dev/arrbrants/customsplash/mixin/SplashManagerMixin.class') == null) {
+					throw new GradleException("Missing splash mixin in ${matches[0].name}")
+				}
+				def metadata = new JsonSlurper().parse(zip.getInputStream(entry))
+				if (metadata.depends.minecraft != "=${minecraftVersion}" ||
+					metadata.version != "${modVersion}+mc${minecraftVersion}${gitCommit ? ".${gitCommit}" : ''}") {
+					throw new GradleException("Invalid metadata in ${matches[0].name}")
+				}
+			}
 		}
 	}
 }
 
 tasks.named('build') {
-	dependsOn tasks.named('collectJars')
+	dependsOn tasks.named('verifyReleases')
 }
