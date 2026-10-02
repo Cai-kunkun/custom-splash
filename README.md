@@ -58,8 +58,16 @@ the title screen shows `Check your custom splash config file to customize!`.
   - `mods`: list of required mod ids
   - `chance`: `0.0`–`1.0` random chance
 
-Entries from the config file and from `SplashRegistry.add(...)` are combined.
-When nothing matches, the vanilla splash is used.
+Entries from the config file, enabled resource packs, and
+`SplashRegistry.add(...)` are combined. When nothing matches, the vanilla splash
+is used.
+
+## Resource packs
+
+A resource pack can add splash texts by providing
+`assets/custom-splash/splashes.txt`. Each non-empty line becomes a splash text;
+lines starting with `#` are ignored. Enabled packs are re-read automatically, and
+`SplashRegistry.reload()` forces an immediate refresh.
 
 ## Usage
 
@@ -79,7 +87,8 @@ public class MyMod implements ModInitializer {
 ```
 
 The API also exposes `remove(String)`, `clear()`, `list()`, `count()`, and
-`reload()` (to re-read the config file). `pick()` returns the chosen text.
+`reload()` (re-reads the config file and enabled resource packs). `pick()`
+returns the chosen text and `pickEntry()` returns it together with its colour.
 
 When no custom splashes are configured or registered, the vanilla Minecraft
 splash is displayed normally.

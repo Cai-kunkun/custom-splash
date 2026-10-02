@@ -384,6 +384,8 @@ public final class SplashRegistry {
 \tprivate static final Random RNG = new Random();
 \tprivate static volatile SplashConfig config = new SplashConfig();
 \tprivate static volatile List<SplashEntry> resourcePackEntries = Collections.emptyList();
+\tprivate static volatile long resourcePackLoadedAt;
+\tprivate static final long RESOURCE_PACK_TTL_MS = 5000L;
 
 \tprivate SplashRegistry() {
 \t}
@@ -470,6 +472,7 @@ public final class SplashRegistry {
 \t * Pick a splash entry, keeping colour information for the renderer.
 \t */
 \tpublic static Optional<Picked> pickEntry() {
+\t\trefreshResourcePacksIfStale();
 \t\tSplashContext context = SplashContext.create();
 \t\tList<SplashEntry> pool = new ArrayList<>();
 \t\tfor (SplashEntry entry : config.splashes) {
@@ -513,7 +516,18 @@ public final class SplashRegistry {
 \t */
 \tpublic static void reload() {
 \t\tconfig = SplashConfig.load(CONFIG_PATH, GSON);
+\t\trefreshResourcePacks();
+\t}
+
+\tprivate static void refreshResourcePacks() {
 \t\tresourcePackEntries = SplashResourcePack.load();
+\t\tresourcePackLoadedAt = System.currentTimeMillis();
+\t}
+
+\tprivate static void refreshResourcePacksIfStale() {
+\t\tif (System.currentTimeMillis() - resourcePackLoadedAt > RESOURCE_PACK_TTL_MS) {
+\t\t\trefreshResourcePacks();
+\t\t}
 \t}
 
 \t/**

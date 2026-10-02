@@ -24,6 +24,9 @@ public final class SplashRegistry {
 	private static final List<SplashEntry> REGISTERED = Collections.synchronizedList(new ArrayList<SplashEntry>());
 	private static final Random RNG = new Random();
 	private static volatile SplashConfig config = new SplashConfig();
+	private static volatile List<SplashEntry> resourcePackEntries = Collections.emptyList();
+	private static volatile long resourcePackLoadedAt;
+	private static final long RESOURCE_PACK_TTL_MS = 5000L;
 
 	private SplashRegistry() {
 	}
@@ -75,6 +78,11 @@ public final class SplashRegistry {
 				texts.add(entry.text);
 			}
 		}
+		for (SplashEntry entry : resourcePackEntries) {
+			if (entry != null && !entry.isBlank()) {
+				texts.add(entry.text);
+			}
+		}
 		synchronized (REGISTERED) {
 			for (SplashEntry entry : REGISTERED) {
 				if (!entry.isBlank()) {
@@ -105,9 +113,15 @@ public final class SplashRegistry {
 	 * Pick a splash entry, keeping colour information for the renderer.
 	 */
 	public static Optional<Picked> pickEntry() {
+		refreshResourcePacksIfStale();
 		SplashContext context = SplashContext.create();
 		List<SplashEntry> pool = new ArrayList<>();
 		for (SplashEntry entry : config.splashes) {
+			if (entry != null && !entry.isBlank() && entry.matches(context)) {
+				pool.add(entry);
+			}
+		}
+		for (SplashEntry entry : resourcePackEntries) {
 			if (entry != null && !entry.isBlank() && entry.matches(context)) {
 				pool.add(entry);
 			}
@@ -143,6 +157,18 @@ public final class SplashRegistry {
 	 */
 	public static void reload() {
 		config = SplashConfig.load(CONFIG_PATH, GSON);
+		refreshResourcePacks();
+	}
+
+	private static void refreshResourcePacks() {
+		resourcePackEntries = SplashResourcePack.load();
+		resourcePackLoadedAt = System.currentTimeMillis();
+	}
+
+	private static void refreshResourcePacksIfStale() {
+		if (System.currentTimeMillis() - resourcePackLoadedAt > RESOURCE_PACK_TTL_MS) {
+			refreshResourcePacks();
+		}
 	}
 
 	/**
