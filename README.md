@@ -30,9 +30,41 @@ For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCoun
 builds one of five non-overlapping groups. CI merges the groups and checks that
 all 40 versions were built before publishing.
 
+## Configuration
+
+On first launch the mod creates `config/custom-splash.json`. Until you edit it,
+the title screen shows `Check your custom splash config file to customize!`.
+
+```json
+{
+  "splashes": [
+    { "text": "Check your custom splash config file to customize!" },
+    { "text": "Hello, {player}!", "weight": 5, "color": "#FFAA00" },
+    { "text": "Enjoy the weekend!", "conditions": { "weekend": true } },
+    { "text": "Late night coding", "conditions": { "time": "night", "chance": 0.5 } },
+    { "text": "You run Fabric!", "conditions": { "mods": ["fabric"] } }
+  ]
+}
+```
+
+- `text` — the splash text. `{player}` is replaced with your username.
+- `weight` — relative chance (default `1`). Higher shows more often.
+- `color` — `#RRGGBB` (real colour on 1.20+, best-effort legacy code on older versions).
+- `conditions` — all listed conditions must match:
+  - `time`: `day` or `night`
+  - `date`: `MM-DD` or `MM-DD..MM-DD` (ranges may wrap across new year)
+  - `weekend`: `true`/`false`
+  - `player`: list of usernames
+  - `mods`: list of required mod ids
+  - `chance`: `0.0`–`1.0` random chance
+
+Entries from the config file and from `SplashRegistry.add(...)` are combined.
+When nothing matches, the vanilla splash is used.
+
 ## Usage
 
-Call `SplashRegistry.add(String)` during mod initialization (or any time before the title screen renders).
+Call `SplashRegistry.add(String)` (or `add(String, int)`) during mod initialization
+(or any time before the title screen renders).
 
 ```java
 import dev.arrbrants.customsplash.SplashRegistry;
@@ -41,11 +73,13 @@ public class MyMod implements ModInitializer {
     @Override
     public void onInitialize() {
         SplashRegistry.add("Hello! Fabric!");
-        SplashRegistry.add("Powered by Mixin");
+        SplashRegistry.add("Powered by Mixin", 3); // weight 3
     }
 }
 ```
 
-Multiple entries are stored in a list. One is chosen at random each time the splash text appears.
+The API also exposes `remove(String)`, `clear()`, `list()`, `count()`, and
+`reload()` (to re-read the config file). `pick()` returns the chosen text.
 
-When no custom splashes are registered, the vanilla Minecraft splash is displayed normally.
+When no custom splashes are configured or registered, the vanilla Minecraft
+splash is displayed normally.

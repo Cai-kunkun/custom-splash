@@ -33,6 +33,9 @@ def main() -> None:
                 metadata = json.loads(archive.read("fabric.mod.json"))
                 registry = archive.read("dev/arrbrants/customsplash/SplashRegistry.class")
                 archive.read("dev/arrbrants/customsplash/mixin/SplashManagerMixin.class")
+                archive.read("dev/arrbrants/customsplash/SplashConfig.class")
+                archive.read("dev/arrbrants/customsplash/SplashEntry.class")
+                archive.read("dev/arrbrants/customsplash/SplashContext.class")
             except KeyError as error:
                 raise SystemExit(f"{jar.name}: missing {error}") from error
         if metadata["depends"]["minecraft"] != f"={minecraft}":

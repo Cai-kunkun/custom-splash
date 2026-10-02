@@ -97,6 +97,11 @@ tasks.register('verifyReleases') {
 				if (zip.getEntry('dev/arrbrants/customsplash/mixin/SplashManagerMixin.class') == null) {
 					throw new GradleException("Missing splash mixin in ${matches[0].name}")
 				}
+				['SplashConfig', 'SplashEntry', 'SplashContext'].each { className ->
+					if (zip.getEntry("dev/arrbrants/customsplash/${className}.class") == null) {
+						throw new GradleException("Missing ${className} class in ${matches[0].name}")
+					}
+				}
 				def metadata = new JsonSlurper().parse(zip.getInputStream(entry))
 				if (metadata.depends.minecraft != "=${minecraftVersion}" ||
 					metadata.version != "${modVersion}+mc${minecraftVersion}${gitCommit ? ".${gitCommit}" : ''}") {
