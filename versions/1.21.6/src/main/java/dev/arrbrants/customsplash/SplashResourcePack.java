@@ -1,8 +1,6 @@
 package dev.arrbrants.customsplash;
 
 import com.google.gson.Gson;
-import net.fabricmc.loader.api.FabricLoader;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +30,7 @@ public final class SplashResourcePack {
 	}
 
 	static List<SplashEntry> load() {
-		Path gameDir = FabricLoader.getInstance().getGameDir();
+		Path gameDir = SplashPlatforms.get().gameDir();
 		Path packsDir = gameDir.resolve("resourcepacks");
 		if (!Files.isDirectory(packsDir)) {
 			return Collections.emptyList();

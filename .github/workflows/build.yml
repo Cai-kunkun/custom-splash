@@ -14,29 +14,36 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
-      - name: setup JDK 25 for Minecraft 26.x
-        if: matrix.shard == 4
+      # ForgeGradle 5 projects (Minecraft 1.16.5 to 1.20.1) need a JDK the
+      # plugin actually accepts.
+      - name: setup JDK 17 for ForgeGradle 5
         uses: actions/setup-java@v5
         with:
-          java-version: '25'
+          java-version: '17'
           distribution: 'microsoft'
-      - name: setup jdk
+      - name: setup JDK 21
         uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'microsoft'
+      # Minecraft 26.x runs on JDK 25, which every shard can contain.
+      - name: setup JDK 25
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
       - name: setup gradle
         uses: gradle/actions/setup-gradle@v4
       - name: make gradle wrapper executable
-        run: chmod +x ./gradlew versions/*/gradlew
+        run: chmod +x ./gradlew versions/*/gradlew forge/*/gradlew neoforge/*/gradlew
       - name: build and collect all versions
-        run: ./gradlew verifyReleases -PbuildShard=${{ matrix.shard }} -PbuildShardCount=5
+        run: ./gradlew verifyReleases -PbuildShard=${{ matrix.shard }} -PbuildShardCount=6
       - name: capture build artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -79,9 +86,32 @@ jobs:
           fi
           curl -fsS "https://api.modrinth.com/v3/project/$MODRINTH_ID/version" -o "$RUNNER_TEMP/modrinth-versions.json"
           for file in build/releases/*.jar; do
-            meta=$(unzip -p "$file" fabric.mod.json)
-            version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['version'])")
-            mc_version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['depends']['minecraft'].lstrip('='))")
+            # Derive loader, version and Minecraft version from the file name, which
+            # is custom-splash-<mc>-<version>.jar for Fabric and
+            # custom-splash-<mc>-<loader>-<version>.jar for Forge and NeoForge.
+            if unzip -l "$file" | rg -q 'META-INF/neoforge.mods.toml'; then
+              loader=neoforge
+            elif unzip -l "$file" | rg -q 'META-INF/mods.toml'; then
+              loader=forge
+            else
+              loader=fabric
+            fi
+            read -r version mc_version < <(python3 - "$file" "$loader" <<'PY'
+          import re, sys
+          import os
+          path, loader = sys.argv[1], sys.argv[2]
+          name = os.path.basename(path)[:-4]
+          if loader == "fabric":
+              pattern = r"^custom-splash-(?P<mc>[0-9.]+)-(?P<version>[0-9][^+]*\+mc[0-9.]+(?:\.[0-9a-f]{8})?)$"
+          else:
+              pattern = rf"^custom-splash-(?P<mc>[0-9.]+)-{loader}-(?P<version>[0-9][^+]*\+mc[0-9.]+\+{loader}(?:\.[0-9a-f]{{8}})?)$"
+          match = re.fullmatch(pattern, name)
+          if match is None:
+              raise SystemExit(f"cannot parse jar name {name!r} for {loader}")
+          print(match.group("version"), match.group("mc"))
+          PY
+            )
+            echo "publishing $file for Minecraft $mc_version on $loader as $version"
             if python3 - "$RUNNER_TEMP/modrinth-versions.json" "$version" <<'PY'
           import json, sys
           versions = json.load(open(sys.argv[1]))
@@ -91,9 +121,9 @@ jobs:
               echo "skipping existing Modrinth version $version"
               continue
             fi
-            echo "publishing $file for Minecraft $mc_version as $version"
+            echo "publishing $file for Minecraft $mc_version on $loader as $version"
             curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
               -H "Authorization: $MODRINTH_TOKEN" \
-              -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":[\"$mc_version\"],\"loaders\":[\"fabric\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
+              -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":[\"$mc_version\"],\"loaders\":[\"$loader\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
               -F "file=@$file;type=application/java-archive" > /dev/null
           done

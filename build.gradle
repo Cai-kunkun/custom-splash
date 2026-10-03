@@ -5,12 +5,40 @@ plugins {
 	id 'base'
 }
 
-def allVersions = file('supported-versions.txt').readLines().findAll { it && !it.startsWith('#') }
-def projectVersions = file('versions').listFiles()
-	.findAll { it.isDirectory() && new File(it, 'build.gradle').isFile() }
-	.collect { it.name }
-if (allVersions.toSet().size() != allVersions.size() || projectVersions.toSet() != allVersions.toSet()) {
-	throw new GradleException('supported-versions.txt must list each version project exactly once')
+// Each loader keeps its own version list because not every loader publishes
+// every Minecraft version. Fabric supports all of them, NeoForge starts at
+// 1.20.2 and Forge stops where NeoForge takes over.
+def loaderVersions(String loader) {
+	return file("supported-${loader}-versions.txt").readLines().findAll { it && !it.startsWith('#') }
+}
+
+def projectDirectories(String loader) {
+	def directory = loader == 'fabric' ? 'versions' : loader
+	return file(directory).listFiles()
+		.findAll { it.isDirectory() && new File(it, 'build.gradle').isFile() }
+		.collect { it.name }
+}
+
+Map<String, List<String>> targets = [:]
+['fabric', 'forge', 'neoforge'].each { loader ->
+	def listed = loaderVersions(loader)
+	def found = projectDirectories(loader)
+	if (listed.toSet() != found.toSet()) {
+		throw new GradleException("supported-${loader}-versions.txt must list each ${loader} project exactly once (missing: ${listed - found}, extra: ${found - listed})")
+	}
+	def duplicated = listed.findAll { listed.count(it) > 1 }
+	if (!duplicated.isEmpty()) {
+		throw new GradleException("supported-${loader}-versions.txt lists duplicates: ${duplicated}")
+	}
+	listed.each { minecraftVersion ->
+		targets["${loader}:${minecraftVersion}"] = [loader, minecraftVersion]
+	}
+}
+
+// A stable, loader grouped ordering so the shards stay predictable.
+def allTargets = targets.values().sort(false) { left, right ->
+	def byLoader = left[0] <=> right[0]
+	byLoader != 0 ? byLoader : (left[1] <=> right[1])
 }
 
 def shard = providers.gradleProperty('buildShard').orNull
@@ -18,94 +46,146 @@ def shardCount = providers.gradleProperty('buildShardCount').orNull
 if ((shard == null) != (shardCount == null)) {
 	throw new GradleException('Specify both buildShard and buildShardCount, or neither')
 }
-def minecraftVersions = allVersions
+def selectedTargets = allTargets
 if (shard != null) {
 	def index = Integer.parseInt(shard)
 	def count = Integer.parseInt(shardCount)
-	if (count < 1 || index < 0 || index >= count || count > allVersions.size()) {
+	if (count < 1 || index < 0 || index >= count || count > allTargets.size()) {
 		throw new GradleException('Invalid build shard: buildShard must be in [0, buildShardCount)')
 	}
-	def size = (allVersions.size() + count - 1).intdiv(count)
-	minecraftVersions = allVersions.drop(index * size).take(size)
+	def size = (allTargets.size() + count - 1).intdiv(count)
+	selectedTargets = allTargets.drop(index * size).take(size)
 }
 def gitCommit = providers.exec {
 	commandLine 'git', 'rev-parse', '--short=8', 'HEAD'
 }.standardOutput.asText.getOrElse('').trim()
-
-def versionBuilds = minecraftVersions.collect { minecraftVersion ->
-	tasks.register("buildMc${minecraftVersion.replace('.', '_')}", Exec) {
-		def versionDirectory = file("versions/${minecraftVersion}")
-		group = 'build'
-		description = "Builds Custom Splash for Minecraft ${minecraftVersion}."
-		workingDir versionDirectory
-		commandLine './gradlew', 'build', '--no-daemon'
-		inputs.files(fileTree(versionDirectory) {
-			include 'build.gradle', 'settings.gradle', 'gradle.properties', 'src/**'
-		})
-		inputs.property 'gitCommit', gitCommit
-		outputs.dir file("versions/${minecraftVersion}/build/libs")
-	}
-}
-
-tasks.register('buildAll') {
-	group = 'build'
-	description = 'Builds every supported Minecraft version.'
-	dependsOn versionBuilds
-}
 
 def readVersionProperty = { String versionDir, String key ->
 	def properties = new Properties()
 	file("${versionDir}/gradle.properties").withInputStream { properties.load(it) }
 	properties.getProperty(key)
 }
+
+def expectedJarName = { List<String> target, String commit ->
+	def (String loader, String minecraftVersion) = target
+	def projectDir = loader == 'fabric' ? 'versions' : loader
+	def modVersion = readVersionProperty("${projectDir}/${minecraftVersion}", 'mod_version')
+	// Forge and NeoForge put the loader in the archivesName as well as in the
+	// version, so the file name carries it twice.
+	if (loader == 'fabric') {
+		return "custom-splash-${minecraftVersion}-${modVersion}+mc${minecraftVersion}${commit ? ".${commit}" : ''}.jar"
+	}
+	return "custom-splash-${minecraftVersion}-${loader}-${modVersion}+mc${minecraftVersion}+${loader}${commit ? ".${commit}" : ''}.jar"
+}
+
+// Gradle 7.6.4 (ForgeGradle 5) refuses to run on a modern JDK, and Minecraft
+// 26.x needs a JDK 25 toolchain. The build job installs 17, 21 and 25 and
+// points the child wrapper at the right one.
+def javaHome = { List<String> target ->
+	def (String loader, String minecraftVersion) = target
+	def isYearVersion = !minecraftVersion.startsWith('1.')
+	def needsJdk17 = loader == 'forge' && !minecraftVersion.startsWith('26.') && Integer.parseInt(minecraftVersion.split('\\.')[1]) < 21
+	def variable = isYearVersion ? 'JAVA_HOME_25_X64' : (needsJdk17 ? 'JAVA_HOME_17_X64' : 'JAVA_HOME_21_X64')
+	def value = System.getenv(variable)
+	return value == null ? [:] : ['JAVA_HOME': value]
+}
+
+def versionBuilds = selectedTargets.collect { target ->
+	def (String loader, String minecraftVersion) = target
+	tasks.register("build${loader.capitalize()}Mc${minecraftVersion.replace('.', '_')}", Exec) {
+		def versionDirectory = file("${loader == 'fabric' ? 'versions' : loader}/${minecraftVersion}")
+		group = 'build'
+		description = "Builds Custom Splash for Minecraft ${minecraftVersion} on ${loader}."
+		workingDir versionDirectory
+		environment javaHome(target)
+		commandLine './gradlew', 'build', '--no-daemon'
+		inputs.files(fileTree(versionDirectory) {
+			include 'build.gradle', 'settings.gradle', 'gradle.properties', 'src/**'
+		})
+		inputs.property 'gitCommit', gitCommit
+		outputs.dir file("${versionDirectory}/build/libs")
+	}
+}
+
+tasks.register('buildAll') {
+	group = 'build'
+	description = 'Builds every supported Minecraft version and loader.'
+	dependsOn versionBuilds
+}
+
 tasks.register('collectJars', Sync) {
 	group = 'build'
-	description = 'Collects all remapped version jars into build/releases.'
+	description = 'Collects every remapped version and loader jar into build/releases.'
 	dependsOn versionBuilds
 	into layout.buildDirectory.dir('releases')
-	minecraftVersions.each { minecraftVersion ->
-		def modVersion = readVersionProperty("versions/${minecraftVersion}", 'mod_version')
-		from(fileTree("versions/${minecraftVersion}/build/libs")) {
-			include "custom-splash-${minecraftVersion}-${modVersion}+mc${minecraftVersion}${gitCommit ? ".${gitCommit}" : ''}.jar"
+	selectedTargets.each { target ->
+		def versionDirectory = file("${target[0] == 'fabric' ? 'versions' : target[0]}/${target[1]}")
+		from(fileTree("${versionDirectory}/build/libs")) {
+			include expectedJarName(target, gitCommit)
 		}
 	}
 }
 
+// Class names present in a jar for a given loader.
+def expectedClasses = { List<String> target ->
+	def classes = ['SplashRegistry', 'SplashConfig', 'SplashEntry', 'SplashContext', 'SplashColors', 'SplashResourcePack']
+	if (target[0] == 'fabric') {
+		classes << 'SplashFabricPlatform'
+	} else {
+		classes << 'SplashForgePlatform'
+	}
+	return classes
+}
+
 tasks.register('verifyReleases') {
 	group = 'verification'
-	description = 'Checks that every selected version produced a valid mod jar.'
+	description = 'Checks that every selected version and loader produced a valid mod jar.'
 	dependsOn tasks.named('collectJars')
 	doLast {
 		def releases = layout.buildDirectory.dir('releases').get().asFile
 		def jars = (releases.listFiles() ?: []).findAll { it.name.endsWith('.jar') }
-		if (jars.size() != minecraftVersions.size()) {
-			throw new GradleException("Expected ${minecraftVersions.size()} jars, found ${jars.size()}")
+		if (jars.size() != selectedTargets.size()) {
+			throw new GradleException("Expected ${selectedTargets.size()} jars, found ${jars.size()}")
 		}
-		minecraftVersions.each { minecraftVersion ->
-			def modVersion = readVersionProperty("versions/${minecraftVersion}", 'mod_version')
-			def expectedName = "custom-splash-${minecraftVersion}-${modVersion}+mc${minecraftVersion}${gitCommit ? ".${gitCommit}" : ''}.jar"
+		selectedTargets.each { target ->
+			def (String loader, String minecraftVersion) = target
+			def versionDirectory = "${loader == 'fabric' ? 'versions' : loader}/${minecraftVersion}"
+			def modVersion = readVersionProperty(versionDirectory, 'mod_version')
+			def expectedName = expectedJarName(target, gitCommit)
 			def matches = jars.findAll { it.name == expectedName }
 			if (matches.size() != 1) {
-				throw new GradleException("Expected one jar for Minecraft ${minecraftVersion}, found ${matches.size()}")
+				throw new GradleException("Expected one jar for Minecraft ${minecraftVersion} on ${loader}, found ${matches.size()}")
 			}
 			new ZipFile(matches[0]).withCloseable { zip ->
-				def entry = zip.getEntry('fabric.mod.json')
-				if (entry == null) throw new GradleException("Missing fabric.mod.json in ${matches[0].name}")
+				def metadataName = loader == 'neoforge' ? 'META-INF/neoforge.mods.toml' : (loader == 'forge' ? 'META-INF/mods.toml' : 'fabric.mod.json')
+				def entry = zip.getEntry(metadataName)
+				if (entry == null) throw new GradleException("Missing ${metadataName} in ${matches[0].name}")
+				def metadata = new JsonSlurper().parse(zip.getInputStream(entry))
 				if (zip.getEntry('dev/arrbrants/customsplash/SplashRegistry.class') == null) {
 					throw new GradleException("Missing SplashRegistry class in ${matches[0].name}")
 				}
 				if (zip.getEntry('dev/arrbrants/customsplash/mixin/SplashManagerMixin.class') == null) {
 					throw new GradleException("Missing splash mixin in ${matches[0].name}")
 				}
-				['SplashConfig', 'SplashEntry', 'SplashContext', 'SplashColors', 'SplashResourcePack'].each { className ->
+				expectedClasses(target).each { className ->
 					if (zip.getEntry("dev/arrbrants/customsplash/${className}.class") == null) {
 						throw new GradleException("Missing ${className} class in ${matches[0].name}")
 					}
 				}
-				def metadata = new JsonSlurper().parse(zip.getInputStream(entry))
-				if (metadata.depends.minecraft != "=${minecraftVersion}" ||
-					metadata.version != "${modVersion}+mc${minecraftVersion}${gitCommit ? ".${gitCommit}" : ''}") {
-					throw new GradleException("Invalid metadata in ${matches[0].name}")
+				if (loader == 'fabric') {
+					if (metadata.depends.minecraft != "=${minecraftVersion}" ||
+						metadata.version != "${modVersion}+mc${minecraftVersion}${gitCommit ? ".${gitCommit}" : ''}") {
+						throw new GradleException("Invalid metadata in ${matches[0].name}")
+					}
+				} else {
+					def modEntry = metadata.mods.find { it.modId == 'custom-splash' }
+					if (modEntry == null || modEntry.version != "${modVersion}+mc${minecraftVersion}+${loader}${gitCommit ? ".${gitCommit}" : ''}") {
+						throw new GradleException("Invalid metadata in ${matches[0].name}")
+					}
+					def dependency = metadata.dependencies.find { it.modId == 'minecraft' }
+					if (dependency == null || dependency.versionRange != "[${minecraftVersion}]") {
+						throw new GradleException("Invalid Minecraft dependency in ${matches[0].name}")
+					}
 				}
 			}
 		}

@@ -1,0 +1,14 @@
+pluginManagement {
+	 repositories {
+		 maven { url = 'https://maven.minecraftforge.net/' }
+		 maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+		 mavenCentral()
+		 gradlePluginPortal()
+	 }
+}
+
+plugins {
+	 id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'custom-splash-1.18.1-forge'

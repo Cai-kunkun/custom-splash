@@ -13,15 +13,13 @@ mixin differs between the old ``String``-based splash API (1.16-1.19.4) and the
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSIONS_FILE = ROOT / "supported-versions.txt"
+VERSIONS_FILE = ROOT / "supported-fabric-versions.txt"
 PACKAGE_DIR = "src/main/java/dev/arrbrants/customsplash"
 MIXIN_DIR = PACKAGE_DIR + "/mixin"
 
 SOURCES = {}
 
 SOURCES["SplashContext.java"] = '''package dev.arrbrants.customsplash;
-
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.lang.reflect.Method;
 import java.time.LocalDate;
@@ -63,7 +61,7 @@ final class SplashContext {
 \t}
 
 \tboolean hasMod(String modId) {
-\t\treturn modId != null && FabricLoader.getInstance().isModLoaded(modId);
+		return modId != null && SplashPlatforms.get().isModLoaded(modId);
 \t}
 
 \tboolean roll(double probability) {
@@ -98,6 +96,148 @@ final class SplashContext {
 \t\t\t}
 \t\t}
 \t\treturn null;
+\t}
+}
+'''
+
+SOURCES["SplashPlatform.java"] = '''package dev.arrbrants.customsplash;
+
+import java.nio.file.Path;
+
+/**
+ * Loader specific hooks. The implementation is generated per platform so the
+ * shared sources stay free of loader imports.
+ */
+public interface SplashPlatform {
+\t/** Directory holding the mod configuration file. */
+\tPath configDir();
+
+\t/** Game installation directory. */
+\tPath gameDir();
+
+\t/** Whether another mod is currently loaded. */
+\tboolean isModLoaded(String modId);
+
+\t/** Platform name used in log messages, for example {@code "Fabric"}. */
+\tString platformName();
+}
+'''
+
+SOURCES["SplashPlatforms.java"] = '''package dev.arrbrants.customsplash;
+
+import java.nio.file.Path;
+
+/** Holds the platform implementation chosen at build time. */
+public final class SplashPlatforms {
+\tprivate static volatile SplashPlatform platform;
+
+\tprivate SplashPlatforms() {
+\t}
+
+\t/** Installs the implementation for the current platform. */
+\tpublic static void install(SplashPlatform implementation) {
+\t\tplatform = implementation;
+\t}
+
+\t/** @throws IllegalStateException when the platform has not been installed yet */
+\tpublic static SplashPlatform get() {
+\t\tSplashPlatform installed = platform;
+\t\tif (installed == null) {
+\t\t\tthrow new IllegalStateException("Splash platform has not been installed");
+\t\t}
+\t\treturn installed;
+\t}
+}
+'''
+
+SOURCES["SplashForgePlatform.java"] = '''package dev.arrbrants.customsplash;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+/** Forge and NeoForge share the same platform implementation. */
+public enum SplashForgePlatform implements SplashPlatform {
+\tINSTANCE;
+
+\t@Override
+\tpublic Path configDir() {
+\t\treturn gameDir().resolve("config");
+\t}
+
+\t@Override
+\tpublic Path gameDir() {
+\t\tString value = System.getProperty("user.dir");
+\t\tPath candidate = value == null ? Paths.get(".") : Paths.get(value);
+\t\treturn candidate.toAbsolutePath().normalize();
+\t}
+
+\t@Override
+\tpublic boolean isModLoaded(String modId) {
+\t\ttry {
+\t\t\tClass<?> loader = Class.forName("net.minecraftforge.fml.loading.FMLLoader");
+\t\t\tObject loadingModList = loader.getMethod("getLoadingModList").invoke(null);
+\t\t\tObject mods = loadingModList == null ? null : loadingModList.getClass().getMethod("getMods").invoke(loadingModList);
+\t\t\tif (mods instanceof Iterable) {
+\t\t\t\tfor (Object mod : (Iterable<?>) mods) {
+\t\t\t\t\tObject id = mod.getClass().getMethod("getModId").invoke(mod);
+\t\t\t\t\tif (modId.equals(id)) {
+\t\t\t\t\t\treturn true;
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t}
+\t\t\treturn false;
+\t\t} catch (ReflectiveOperationException | RuntimeException ignored) {
+\t\t\treturn false;
+\t\t}
+\t}
+
+\t@Override
+\tpublic String platformName() {
+\t\treturn "Forge";
+\t}
+
+\tstatic Path firstExisting(Path... candidates) {
+\t\tfor (Path candidate : candidates) {
+\t\t\tif (Files.isDirectory(candidate)) {
+\t\t\t\treturn candidate;
+\t\t\t}
+\t\t}
+\t\tthrow new UncheckedIOException(new IOException("no directory found"));
+\t}
+}
+'''
+
+SOURCES["SplashFabricPlatform.java"] = '''package dev.arrbrants.customsplash;
+
+import net.fabricmc.loader.api.FabricLoader;
+
+import java.nio.file.Path;
+
+/** Fabric implementation of the platform hooks. */
+public enum SplashFabricPlatform implements SplashPlatform {
+\tINSTANCE;
+
+\t@Override
+\tpublic Path configDir() {
+\t\treturn FabricLoader.getInstance().getConfigDir();
+\t}
+
+\t@Override
+\tpublic Path gameDir() {
+\t\treturn FabricLoader.getInstance().getGameDir();
+\t}
+
+\t@Override
+\tpublic boolean isModLoaded(String modId) {
+\t\treturn FabricLoader.getInstance().isModLoaded(modId);
+\t}
+
+\t@Override
+\tpublic String platformName() {
+\t\treturn "Fabric";
 \t}
 }
 '''
@@ -361,7 +501,6 @@ SOURCES["SplashRegistry.java"] = '''package dev.arrbrants.customsplash;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -378,7 +517,7 @@ import java.util.Random;
  * drawn. When nothing matches, the vanilla splash is used.</p>
  */
 public final class SplashRegistry {
-\tprivate static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("custom-splash.json");
+	private static final Path CONFIG_PATH = SplashPlatforms.get().configDir().resolve("custom-splash.json");
 \tprivate static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 \tprivate static final List<SplashEntry> REGISTERED = Collections.synchronizedList(new ArrayList<SplashEntry>());
 \tprivate static final Random RNG = new Random();
@@ -560,8 +699,6 @@ public final class SplashRegistry {
 SOURCES["SplashResourcePack.java"] = '''package dev.arrbrants.customsplash;
 
 import com.google.gson.Gson;
-import net.fabricmc.loader.api.FabricLoader;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -591,7 +728,7 @@ public final class SplashResourcePack {
 \t}
 
 \tstatic List<SplashEntry> load() {
-\t\tPath gameDir = FabricLoader.getInstance().getGameDir();
+		Path gameDir = SplashPlatforms.get().gameDir();
 \t\tPath packsDir = gameDir.resolve("resourcepacks");
 \t\tif (!Files.isDirectory(packsDir)) {
 \t\t\treturn Collections.emptyList();
@@ -812,26 +949,50 @@ def main() -> None:
         package_dir = project / PACKAGE_DIR
         if not (project / "build.gradle").is_file():
             raise SystemExit(f"missing version project: {project}")
-        for name, content in SOURCES.items():
-            (package_dir / name).write_text(content)
-        if uses_yarn_mixin(version):
-            mixin = MIXIN_YARN
-        else:
-            mixin = MIXIN_OLD if uses_legacy_mixin(version) else MIXIN_NEW
-        (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(mixin)
+        write_shared_sources(project, loader="fabric")
+        (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(pick_mixin(version, loader="fabric"))
         configure_mappings(project, version)
-        patch_initializer(project)
-        print(f"updated {version}")
+        patch_initializer(project, loader="fabric")
+        print(f"updated fabric {version}")
 
-def patch_initializer(project: Path) -> None:
+
+def write_shared_sources(project: Path, loader: str) -> None:
+    """Write every source that is identical on all three loaders."""
+    package_dir = project / PACKAGE_DIR
+    platform = "SplashForgePlatform.java" if loader in ("forge", "neoforge") else "SplashFabricPlatform.java"
+    for name, content in SOURCES.items():
+        if name in ("SplashForgePlatform.java", "SplashFabricPlatform.java") and name != platform:
+            continue
+        (package_dir / name).write_text(content)
+
+
+def pick_mixin(version: str, loader: str) -> str:
+    if uses_yarn_mixin(version):
+        return MIXIN_YARN
+    return MIXIN_OLD if uses_legacy_mixin(version) else MIXIN_NEW
+
+
+def patch_initializer(project: Path, loader: str) -> None:
     path = project / PACKAGE_DIR / "CustomSplash.java"
     source = path.read_text()
-    if "SplashRegistry.reload()" in source:
+    install_call = "SplashPlatforms.install("
+    if install_call in source:
         return
-    marker = "public void onInitialize() {\n"
+    if loader == "fabric":
+        marker = "public void onInitialize() {\n"
+        install = "\t\tSplashPlatforms.install(SplashFabricPlatform.INSTANCE);\n"
+    elif loader in ("forge", "neoforge"):
+        marker = "public static void init() {\n"
+        install = "\t\tSplashPlatforms.install(SplashForgePlatform.INSTANCE);\n"
+    else:
+        raise SystemExit(f"unknown loader: {loader}")
     if marker not in source:
         raise SystemExit(f"unexpected CustomSplash in {path}")
-    source = source.replace(marker, marker + "\t\tSplashRegistry.reload();\n", 1)
+    if "SplashRegistry.reload()" in source:
+        # Existing initializer: only insert the platform install.
+        source = source.replace(marker, marker + install, 1)
+    else:
+        source = source.replace(marker, marker + install + "\t\tSplashRegistry.reload();\n", 1)
     path.write_text(source)
 
 

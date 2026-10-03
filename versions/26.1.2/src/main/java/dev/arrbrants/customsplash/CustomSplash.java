@@ -12,6 +12,7 @@ public class CustomSplash implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		SplashPlatforms.install(SplashFabricPlatform.INSTANCE);
 		SplashRegistry.reload();
 		String name = FabricLoader.getInstance().getModContainer(MOD_ID)
 				.map(ModContainer::getMetadata).map(meta -> meta.getName()).orElse(MOD_ID);
