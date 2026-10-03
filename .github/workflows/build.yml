@@ -79,3 +79,26 @@ jobs:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           MODRINTH_ID: ${{ vars.MODRINTH_ID }}
         run: python3 scripts/publish_modrinth.py build/releases
+      - name: refresh modrinth description
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          MODRINTH_ID: ${{ vars.MODRINTH_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MODRINTH_TOKEN" ] || [ -z "$MODRINTH_ID" ]; then
+            echo "Modrinth token or project id not configured, skipping"
+            exit 0
+          fi
+          python3 - "$MODRINTH_ID" <<'PY'
+          import json, os, sys, urllib.request
+          project_id, token = sys.argv[1], os.environ["MODRINTH_TOKEN"]
+          body = json.dumps({"description": open("MODRINTH.md", encoding="utf-8").read()}).encode()
+          request = urllib.request.Request(
+              f"https://api.modrinth.com/v3/project/{project_id}",
+              data=body,
+              headers={"Authorization": token, "Content-Type": "application/json", "User-Agent": "custom-splash/release-script"},
+              method="PATCH",
+          )
+          with urllib.request.urlopen(request) as response:
+              print("modrinth description updated:", response.status)
+          PY
