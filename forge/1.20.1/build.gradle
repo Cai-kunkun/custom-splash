@@ -27,11 +27,11 @@ minecraft {
 		}
 	}
 
-	
+	copyIdeResources = true
 }
 
 dependencies {
-	minecraft 'net.minecraftforge:forge:1.20.1-47.4.26'
+	minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'
 }
 
 // Older ForgeGradle releases run the game with SRG member names in production.
