@@ -1,5 +1,7 @@
 package dev.arrbrants.customsplash;
 
+import net.fabricmc.loader.api.FabricLoader;
+
 import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -40,7 +42,7 @@ final class SplashContext {
 	}
 
 	boolean hasMod(String modId) {
-		return modId != null && SplashPlatforms.get().isModLoaded(modId);
+		return modId != null && FabricLoader.getInstance().isModLoaded(modId);
 	}
 
 	boolean roll(double probability) {

@@ -1,32 +1,17 @@
 # Custom Splash
 
-A mod that replaces or extends the Minecraft title screen yellow splash text.
-One code base is built for **Fabric**, **Forge** and **NeoForge**.
+A Fabric mod that replaces or extends the Minecraft title screen yellow splash text.
 
 ## Supported versions
 
-Every stable Minecraft release from **1.14.4 through 26.3** is supported on the
-loaders that publish it:
+Each supported Minecraft version is an independent Gradle project under `versions/`.
+The [version list](supported-versions.txt) covers every stable release from **1.16 through 26.3** (40 versions, including all patch releases in between). Snapshots and pre-releases are not included. Adding a version requires both its directory and an entry in this list.
 
-| Loader | Directory | Versions |
-| --- | --- | --- |
-| Fabric | `versions/` | 1.14.4 – 26.3 ([supported-fabric-versions.txt](supported-fabric-versions.txt)) |
-| Forge | `forge/` | 1.16.5 – 1.21.4 ([supported-forge-versions.txt](supported-forge-versions.txt)) |
-| NeoForge | `neoforge/` | 1.20.2 – 26.3 ([supported-neoforge-versions.txt](supported-neoforge-versions.txt)) |
-
-Each supported Minecraft version and loader is an independent Gradle project.
-Snapshots and pre-releases are not included, and adding a version requires both
-its directory and an entry in the corresponding list.
-
-Every project compiles against the official Mojang names. Mojang only started
-publishing mappings in 1.14.4, so 1.14–1.14.3 on Fabric use Yarn mappings
-committed under `versions/*/mappings/yarn.tiny`. Forge versions before 1.21 run
-the game with the legacy SRG member names, so those projects additionally
-reobfuscate their jar and generate a mixin refmap.
-
-Versions before 1.20 use the `String`-returning splash API; newer versions use
-`SplashRenderer`. Only the loader itself is required — Fabric API, Forge API and
-NeoForge API are not used by this mod.
+Minecraft 1.16–1.21.x projects use `loom.officialMojangMappings()`; 26.x is
+distributed with official Mojang names already, so mappings must not be applied
+again. Versions before 1.20 use the `String`-returning splash API; newer versions
+use `SplashRenderer`. The public `SplashRegistry.add(String)` API is unchanged.
+Only Fabric Loader is required; Fabric API is not used by this mod.
 
 Build one version from its directory:
 
@@ -41,13 +26,9 @@ Build every version, check each JAR, and collect them in `build/releases`:
 ./gradlew build
 ```
 
-For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCount=6`
-builds one of six non-overlapping groups. CI merges the groups and checks that
-all 85 projects (48 Fabric, 16 Forge, 21 NeoForge) were built before publishing.
-
-Loader projects need their own toolchain, so a child build picks the JDK the
-project expects: 17 for ForgeGradle 5, 21 for everything between, and 25 for
-Minecraft 26.x. Locally, use the JDK each project wants.
+For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCount=5`
+builds one of five non-overlapping groups. CI merges the groups and checks that
+all 40 versions were built before publishing.
 
 ## Configuration
 
@@ -80,11 +61,6 @@ the title screen shows `Check your custom splash config file to customize!`.
 Entries from the config file, enabled resource packs, and
 `SplashRegistry.add(...)` are combined. When nothing matches, the vanilla splash
 is used.
-
-Conditions are evaluated through reflection, so `player` (and the `{player}`
-placeholder) is unavailable on Forge versions before 1.21, where the game
-renames Minecraft members in production. On those versions the entry is simply
-skipped and the vanilla splash is kept.
 
 ## Resource packs
 

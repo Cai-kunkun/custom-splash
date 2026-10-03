@@ -2,6 +2,7 @@ package dev.arrbrants.customsplash;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -18,7 +19,7 @@ import java.util.Random;
  * drawn. When nothing matches, the vanilla splash is used.</p>
  */
 public final class SplashRegistry {
-	private static final Path CONFIG_PATH = SplashPlatforms.get().configDir().resolve("custom-splash.json");
+	private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("custom-splash.json");
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 	private static final List<SplashEntry> REGISTERED = Collections.synchronizedList(new ArrayList<SplashEntry>());
 	private static final Random RNG = new Random();
