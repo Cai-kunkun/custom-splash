@@ -6,8 +6,9 @@ conditions, colour support and an extended public API.
 
 The shared sources contain no Minecraft compile-time references (player lookup is
 reflective), so the exact same files work on every supported version. Only the
-mixin differs between the old ``String``-based splash API (1.16-1.19.4) and the
-``SplashRenderer`` API (1.20+).
+mixin differs between versions: pre-1.16 uses the SplashManager API
+(SplashTextResourceSupplier#get under Yarn, SplashManager#getSplash under Mojang
+mappings), 1.20+ uses SplashRenderer.
 """
 
 from pathlib import Path
@@ -680,6 +681,26 @@ public final class SplashResourcePack {
 }
 '''
 
+MIXIN_YARN = '''package dev.arrbrants.customsplash.mixin;
+
+import dev.arrbrants.customsplash.SplashColors;
+import dev.arrbrants.customsplash.SplashRegistry;
+import net.minecraft.client.resource.SplashTextResourceSupplier;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(SplashTextResourceSupplier.class)
+public class SplashManagerMixin {
+\t@Inject(at = @At("HEAD"), method = "get", cancellable = true)
+\tprivate void getSplash(CallbackInfoReturnable<String> cir) {
+\t\tSplashRegistry.pickEntry().ifPresent(picked ->
+\t\t\t\tcir.setReturnValue(picked.rgb >= 0 ? SplashColors.legacyPrefix(picked.rgb) + picked.text : picked.text));
+\t}
+}
+'''
+
 MIXIN_OLD = '''package dev.arrbrants.customsplash.mixin;
 
 import dev.arrbrants.customsplash.SplashColors;
@@ -754,6 +775,22 @@ def uses_legacy_mixin(version: str) -> bool:
     return parts[0] == "1" and int(parts[1]) <= 19
 
 
+# Mojang only publishes official client mappings from 1.14.4 onwards, so the
+# earliest supported versions build against Yarn instead. Under Yarn the splash
+# supplier is SplashTextResourceSupplier#get rather than SplashManager#getSplash.
+YARN_MIXIN_VERSIONS = ("1.14", "1.14.1", "1.14.2", "1.14.3")
+
+
+def uses_yarn_mixin(version: str) -> bool:
+    return version in YARN_MIXIN_VERSIONS
+
+
+def mixin_for(version: str) -> str:
+    if uses_yarn_mixin(version):
+        return MIXIN_YARN
+    return MIXIN_OLD if uses_legacy_mixin(version) else MIXIN_NEW
+
+
 def main() -> None:
     versions = VERSIONS_FILE.read_text().splitlines()
     for version in versions:
@@ -763,8 +800,7 @@ def main() -> None:
             raise SystemExit(f"missing version project: {project}")
         for name, content in SOURCES.items():
             (package_dir / name).write_text(content)
-        mixin = MIXIN_OLD if uses_legacy_mixin(version) else MIXIN_NEW
-        (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(mixin)
+        (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(mixin_for(version))
         patch_initializer(project)
         print(f"updated {version}")
 

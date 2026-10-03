@@ -5,12 +5,18 @@ A Fabric mod that replaces or extends the Minecraft title screen yellow splash t
 ## Supported versions
 
 Each supported Minecraft version is an independent Gradle project under `versions/`.
-The [version list](supported-versions.txt) covers every stable release from **1.16 through 26.3** (40 versions, including all patch releases in between). Snapshots and pre-releases are not included. Adding a version requires both its directory and an entry in this list.
+The [version list](supported-versions.txt) covers every stable release from **1.14 through 26.3** (48 versions, including all patch releases in between). Snapshots and pre-releases are not included. Adding a version requires both its directory and an entry in this list.
 
 Minecraft 1.16–1.21.x projects use `loom.officialMojangMappings()`; 26.x is
 distributed with official Mojang names already, so mappings must not be applied
-again. Versions before 1.20 use the `String`-returning splash API; newer versions
-use `SplashRenderer`. The public `SplashRegistry.add(String)` API is unchanged.
+again. Mojang only started publishing official mappings with 1.14.4, so 1.14
+through 1.14.3 build against Yarn: 1.14.3 takes the published `yarn:v2`
+artifact, while 1.14–1.14.2 use a corrected `mappings/yarn.tiny` committed to
+the project because the published Yarn v2 archives for those versions declare
+the intermediary/named namespaces in the wrong order (see
+`scripts/update_yarn_mappings.py`). Versions before 1.20 use the
+`String`-returning splash API; newer versions use `SplashRenderer`. The public
+`SplashRegistry.add(String)` API is unchanged.
 Only Fabric Loader is required; Fabric API is not used by this mod.
 
 Build one version from its directory:
@@ -28,7 +34,7 @@ Build every version, check each JAR, and collect them in `build/releases`:
 
 For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCount=5`
 builds one of five non-overlapping groups. CI merges the groups and checks that
-all 40 versions were built before publishing.
+all 48 versions were built before publishing.
 
 ## Configuration
 
