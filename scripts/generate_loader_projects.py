@@ -203,9 +203,7 @@ dependencies {{
 // compiled against, so no reobfuscation or refmap is required.
 def srgRuntime = Boolean.parseBoolean(findProperty('srg_runtime') ?: 'false')
 if (srgRuntime) {{
-	dependencies {{
-		add('annotationProcessor', 'org.spongepowered:mixin:{mixin_version}:processor')
-	}}
+	add('annotationProcessor', 'org.spongepowered:mixin:{mixin_version}:processor')
 
 	mixin {{
 		add sourceSets.main, 'customsplash.refmap.json'
