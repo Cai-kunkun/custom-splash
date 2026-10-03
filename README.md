@@ -46,8 +46,12 @@ cd versions/1.20.1-forge
 ```
 
 The Forge ports for 1.16.5–1.19.4 use ForgeGradle 5 (Gradle 7.6.4), which does
-**not** run on Java 21: set `JAVA_HOME` to a JDK 17 before building them. The
-1.20.x ports use ForgeGradle 6 (Gradle 8.13) and accept Java 17–21.
+**not** run on Java 21: set `JAVA_HOME` to a JDK 17 before building them.
+ForgeGradle then compiles with the JDK matching each Minecraft version (Java 8
+for 1.16.5, Java 16 for 1.17.1, Java 17 for the rest), which it discovers
+through the `JAVA_HOME_8_X64`, `JAVA_HOME_16_X64` and `JAVA_HOME_17_X64`
+environment variables. The 1.20.x ports use ForgeGradle 6 (Gradle 8.13) and
+accept Java 17–21.
 
 Build every version, check each JAR, and collect them in `build/releases`:
 
@@ -59,7 +63,8 @@ For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCoun
 builds one of six non-overlapping groups. CI merges the groups and checks that
 all 61 targets were built before publishing. On CI, `FORGE_JAVA_HOME` points at
 a JDK 17 that the aggregator forwards to the ForgeGradle 5 child builds while
-the rest of the build runs on Java 21.
+the rest of the build runs on Java 21, and the runner's JDK 8 plus a JDK 16
+installed for Minecraft 1.17.1 satisfy ForgeGradle's per-version toolchains.
 
 ## Configuration
 

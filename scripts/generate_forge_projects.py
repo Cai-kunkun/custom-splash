@@ -134,7 +134,10 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
-	options.release = Integer.parseInt(java_version)
+	// ForgeGradle compiles with the JDK matching the Minecraft version (Java 8
+	// for 1.16.5), and javac 8 does not support the --release flag.
+	sourceCompatibility = java_version
+	targetCompatibility = java_version
 }
 
 jar {
@@ -248,6 +251,7 @@ forge_version=%%FORGE%%
 java_version=%%JAVA%%
 mod_version=1.2.0
 maven_group=dev.arrbrants.customsplash
+org.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME_16_X64,JAVA_HOME_17_X64
 """
 
 WRAPPER_PROPERTIES = """distributionBase=GRADLE_USER_HOME
