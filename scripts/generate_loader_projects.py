@@ -36,6 +36,7 @@ NEOFORGE_VERSIONS = [
     # NeoForge only ships stable builds for some patch releases, so the ones
     # that are beta-only (1.20.3, 1.20.5, 1.21.6, 1.21.7, 1.21.9 and 26.3) are
     # left out instead of tracking beta versions that may move.
+    "1.20.2",
     "1.20.4",
     "1.20.6",
     "1.21",
@@ -72,6 +73,7 @@ FORGE_LOADER_VERSION = {
 }
 
 NEOFORGE_LOADER_VERSION = {
+    "1.20.2": "20.2.93",
     "1.20.4": "20.4.251",
     "1.20.6": "20.6.141",
     "1.21": "21.0.167",
@@ -108,6 +110,7 @@ JAVA_VERSION = {
     "1.19.4": "17",
     "1.20": "17",
     "1.20.1": "17",
+    "1.20.2": "17",
     "1.20.3": "17",
     "1.20.4": "17",
     "1.20.5": "17",
@@ -151,6 +154,7 @@ FORGE_GRADLE_VERSION = {
 }
 
 # ModDevGradle 2.0 dropped support for the earliest NeoForge releases.
+MODDEV_VERSION_LEGACY = "1.0.24"
 MODDEV_VERSION = "2.0.+"
 
 PACKAGE_DIR = "src/main/java/dev/arrbrants/customsplash"
@@ -222,9 +226,7 @@ processResources {{
 	}}
 }}
 
-// ForgeGradle and ModDevGradle run their own compilers with the Java version
-// the game needs, so only this mod's sources use the project version.
-tasks.matching {{ it.name in ['compileJava', 'compileTestJava'] }}.configureEach {{
+tasks.withType(JavaCompile).configureEach {{
 	options.release = Integer.parseInt(java_version)
 }}
 
@@ -279,9 +281,7 @@ processResources {{
 	}}
 }}
 
-// ForgeGradle and ModDevGradle run their own compilers with the Java version
-// the game needs, so only this mod's sources use the project version.
-tasks.matching {{ it.name in ['compileJava', 'compileTestJava'] }}.configureEach {{
+tasks.withType(JavaCompile).configureEach {{
 	options.release = Integer.parseInt(java_version)
 }}
 
@@ -589,11 +589,7 @@ def scaffold(loader: str, minecraft: str, versions: dict, extra: dict) -> None:
     # ForgeGradle 5 rejects Gradle 8 and newer, so those versions use the
     # Gradle 7 wrapper instead of the Gradle 8 one used by the other loaders.
     wrapper_distribution = "gradle-8.8-bin.zip"
-    if not minecraft.startswith("1."):
-        # The 26.x releases need a Java 25 toolchain, which Gradle 8.8 cannot
-        # run on.
-        wrapper_distribution = "gradle-9.5.1-bin.zip"
-    elif loader == "forge" and not extra.get("forge_gradle_version", "").startswith("6."):
+    if loader == "forge" and not extra.get("forge_gradle_version", "").startswith("6."):
         wrapper_distribution = "gradle-7.6.4-bin.zip"
 
     # Copy the Gradle wrapper from an existing Fabric project.
@@ -638,6 +634,9 @@ def scaffold(loader: str, minecraft: str, versions: dict, extra: dict) -> None:
         values["copy_ide_resources"] = "" if srg_runtime else "	copyIdeResources = true"
         template = FORGE_BUILD
     else:
+        # ModDevGradle 2.0 dropped support for the earliest NeoForge releases.
+        needs_legacy_moddev = minecraft in ("1.20.2", "1.20.4")
+        values["moddev_version"] = MODDEV_VERSION_LEGACY if needs_legacy_moddev else MODDEV_VERSION
         template = NEOFORGE_BUILD
 
     # Minimum loader version declared in mods.toml.

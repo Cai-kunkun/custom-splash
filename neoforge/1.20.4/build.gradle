@@ -1,5 +1,5 @@
 plugins {
-	id 'net.neoforged.moddev' version '2.0.+'
+	id 'net.neoforged.moddev' version '1.0.24'
 	id 'maven-publish'
 }
 
@@ -38,9 +38,7 @@ processResources {
 	}
 }
 
-// ForgeGradle and ModDevGradle run their own compilers with the Java version
-// the game needs, so only this mod's sources use the project version.
-tasks.matching { it.name in ['compileJava', 'compileTestJava'] }.configureEach {
+tasks.withType(JavaCompile).configureEach {
 	options.release = Integer.parseInt(java_version)
 }
 
