@@ -98,7 +98,14 @@ jobs:
       - name: publish github release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$MOD_VERSION-build${{ github.run_number }}" build/releases/*.jar --title "Custom Splash $MOD_VERSION (build ${{ github.run_number }})" --prerelease --generate-notes
+        run: |
+          set -euo pipefail
+          tag="$MOD_VERSION-build${{ github.run_number }}"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" build/releases/*.jar --clobber
+          else
+            gh release create "$tag" build/releases/*.jar --title "Custom Splash $MOD_VERSION (build ${{ github.run_number }})" --prerelease --generate-notes
+          fi
       - name: publish to modrinth
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
@@ -110,6 +117,7 @@ jobs:
             exit 0
           fi
           curl -fsS "https://api.modrinth.com/v3/project/$MODRINTH_ID/version" -o "$RUNNER_TEMP/modrinth-versions.json"
+          failed=0
           for file in build/releases/*.jar; do
             if unzip -l "$file" | grep -q "META-INF/mods.toml"; then
               loader="forge"
@@ -131,8 +139,26 @@ jobs:
               continue
             fi
             echo "publishing $file for Minecraft $mc_version ($loader) as $version"
-            curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
-              -H "Authorization: $MODRINTH_TOKEN" \
-              -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":[\"$mc_version\"],\"loaders\":[\"$loader\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
-              -F "file=@$file;type=application/java-archive" > /dev/null
+            published=false
+            for attempt in 1 2 3; do
+              if curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
+                -H "Authorization: $MODRINTH_TOKEN" \
+                -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":[\"$mc_version\"],\"loaders\":[\"$loader\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
+                -F "file=@$file;type=application/java-archive" -o "$RUNNER_TEMP/modrinth-response.json"
+              then
+                published=true
+                break
+              fi
+              echo "attempt $attempt for $version failed; Modrinth response:"
+              cat "$RUNNER_TEMP/modrinth-response.json" 2>/dev/null || true
+              sleep 10
+            done
+            if [ "$published" != "true" ]; then
+              echo "::error::Failed to publish $version to Modrinth"
+              failed=$((failed + 1))
+            fi
           done
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::$failed Modrinth upload(s) failed"
+            exit 1
+          fi
