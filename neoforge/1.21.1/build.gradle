@@ -38,7 +38,9 @@ processResources {
 	}
 }
 
-tasks.withType(JavaCompile).configureEach {
+// ForgeGradle and ModDevGradle run their own compilers with the Java version
+// the game needs, so only this mod's sources use the project version.
+tasks.matching { it.name in ['compileJava', 'compileTestJava'] }.configureEach {
 	options.release = Integer.parseInt(java_version)
 }
 
