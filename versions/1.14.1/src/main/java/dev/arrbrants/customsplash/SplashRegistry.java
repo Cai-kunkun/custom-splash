@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.time.format.DateTimeFormatter;
 import java.util.Random;
 
 /**
@@ -19,7 +20,7 @@ import java.util.Random;
  * drawn. When nothing matches, the vanilla splash is used.</p>
  */
 public final class SplashRegistry {
-	private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("custom-splash.json");
+	private static Path configPathCache;
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 	private static final List<SplashEntry> REGISTERED = Collections.synchronizedList(new ArrayList<SplashEntry>());
 	private static final Random RNG = new Random();
@@ -27,6 +28,8 @@ public final class SplashRegistry {
 	private static volatile List<SplashEntry> resourcePackEntries = Collections.emptyList();
 	private static volatile long resourcePackLoadedAt;
 	private static final long RESOURCE_PACK_TTL_MS = 5000L;
+	private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+	private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
 	private SplashRegistry() {
 	}
@@ -136,27 +139,34 @@ public final class SplashRegistry {
 		if (pool.isEmpty()) {
 			return Optional.empty();
 		}
+		SplashEntry chosen = chooseWeighted(pool, RNG);
+		SplashColor color = chosen.colorSpec();
+		return Optional.of(new Picked(format(chosen.text, context), color == null ? -1 : color.solidRgb(), color));
+	}
+
+	/**
+	 * Pick one entry using relative weights. Visible for testing.
+	 */
+	static SplashEntry chooseWeighted(List<SplashEntry> pool, Random random) {
 		int total = 0;
 		for (SplashEntry entry : pool) {
 			total += entry.weightOrDefault();
 		}
-		int roll = RNG.nextInt(total);
-		SplashEntry chosen = pool.get(pool.size() - 1);
+		int roll = random.nextInt(total);
 		for (SplashEntry entry : pool) {
 			roll -= entry.weightOrDefault();
 			if (roll < 0) {
-				chosen = entry;
-				break;
+				return entry;
 			}
 		}
-		return Optional.of(new Picked(format(chosen.text, context), chosen.rgb()));
+		return pool.get(pool.size() - 1);
 	}
 
 	/**
 	 * Reload the JSON config file, creating it with defaults when missing.
 	 */
 	public static void reload() {
-		config = SplashConfig.load(CONFIG_PATH, GSON);
+		config = SplashConfig.load(configPath(), GSON);
 		refreshResourcePacks();
 	}
 
@@ -175,12 +185,41 @@ public final class SplashRegistry {
 	 * @return the path of the JSON config file
 	 */
 	public static Path configPath() {
-		return CONFIG_PATH;
+		Path path = configPathCache;
+		if (path == null) {
+			path = FabricLoader.getInstance().getConfigDir().resolve("custom-splash.json");
+			configPathCache = path;
+		}
+		return path;
 	}
 
-	private static String format(String text, SplashContext context) {
+	/**
+		* Replace the supported placeholders. Unknown tokens are left untouched so
+		* that text such as an emoticon keeps working.
+	 */
+	static String format(String text, SplashContext context) {
+		if (text.indexOf('{') < 0) {
+			return text;
+		}
 		String player = context.playerName();
-		return text.replace("{player}", player == null ? "player" : player);
+		String name = player == null ? "player" : player;
+		String[] tokens = {
+			"{player}", name, "{username}", name,
+			"{date}", context.date().format(DATE_FORMAT),
+			"{time}", context.time().format(TIME_FORMAT),
+			"{mods}", context.modCount(),
+			"{mods_count}", context.modCount(),
+			"{mc_version}", context.gameVersion(),
+			"{mc}", context.gameVersion(),
+			"{version}", context.gameVersion(),
+		};
+		String result = text;
+		for (int i = 0; i < tokens.length; i += 2) {
+			if (tokens[i + 1] != null) {
+				result = result.replace(tokens[i], tokens[i + 1]);
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -188,11 +227,15 @@ public final class SplashRegistry {
 	 */
 	public static final class Picked {
 		public final String text;
+		/** the solid RGB value, or {@code -1} when unset or multi-coloured */
 		public final int rgb;
+		/** the full colour specification, or {@code null} when unset */
+		public final SplashColor color;
 
-		Picked(String text, int rgb) {
+		Picked(String text, int rgb, SplashColor color) {
 			this.text = text;
 			this.rgb = rgb;
+			this.color = color;
 		}
 	}
 }

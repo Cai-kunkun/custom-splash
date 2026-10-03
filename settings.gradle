@@ -10,3 +10,7 @@ pluginManagement {
 }
 
 rootProject.name = 'custom-splash'
+
+// Unit tests for the shared sources. Everything under versions/ is a separate
+// standalone build, this is the only nested project of the aggregator.
+include 'tests'

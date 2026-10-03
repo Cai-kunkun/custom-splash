@@ -35,6 +35,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew versions/*/gradlew
+      - name: run unit tests
+        run: ./gradlew :tests:test --no-daemon
       - name: build and collect all versions
         run: ./gradlew verifyReleases -PbuildShard=${{ matrix.shard }} -PbuildShardCount=5
       - name: capture build artifacts

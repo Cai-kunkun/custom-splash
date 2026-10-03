@@ -32,7 +32,13 @@ public final class SplashResourcePack {
 	}
 
 	static List<SplashEntry> load() {
-		Path gameDir = FabricLoader.getInstance().getGameDir();
+		Path gameDir;
+		try {
+			gameDir = FabricLoader.getInstance().getGameDir();
+		} catch (RuntimeException | LinkageError ignored) {
+			// no loader in this environment, for example unit tests
+			return Collections.emptyList();
+		}
 		Path packsDir = gameDir.resolve("resourcepacks");
 		if (!Files.isDirectory(packsDir)) {
 			return Collections.emptyList();

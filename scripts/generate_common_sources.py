@@ -40,7 +40,7 @@ final class SplashContext {
 \tprivate final String playerName;
 \tprivate final Random random;
 
-\tprivate SplashContext(LocalTime time, LocalDate date, String playerName, Random random) {
+\tSplashContext(LocalTime time, LocalDate date, String playerName, Random random) {
 \t\tthis.time = time;
 \t\tthis.date = date;
 \t\tthis.playerName = playerName;
@@ -63,8 +63,44 @@ final class SplashContext {
 \t\treturn playerName;
 \t}
 
+\t/**
+\t * @return the running Minecraft version, or null when unavailable
+\t */
+\tString gameVersion() {
+\t\ttry {
+\t\t\tClass<?> minecraft = Class.forName("net.minecraft.client.Minecraft");
+\t\t\tObject instance = invoke(minecraft, null, "getInstance");
+\t\t\tif (instance == null) {
+\t\t\t\treturn null;
+\t\t\t}
+\t\t\tObject version = invoke(instance.getClass(), instance, "getLaunchedVersion", "getGameVersion");
+\t\t\treturn version instanceof String ? (String) version : null;
+\t\t} catch (Throwable ignored) {
+\t\t\treturn null;
+\t\t}
+\t}
+
+\t/**
+\t * @return the number of loaded mods, or null when unavailable
+\t */
+\tString modCount() {
+\t\ttry {
+\t\t\treturn String.valueOf(FabricLoader.getInstance().getAllMods().size());
+\t\t} catch (RuntimeException | LinkageError ignored) {
+\t\t\treturn null;
+\t\t}
+\t}
+
 \tboolean hasMod(String modId) {
-\t\treturn modId != null && FabricLoader.getInstance().isModLoaded(modId);
+\t\tif (modId == null) {
+\t\t\treturn false;
+\t\t}
+\t\ttry {
+\t\t\treturn FabricLoader.getInstance().isModLoaded(modId);
+\t\t} catch (RuntimeException | LinkageError ignored) {
+\t\t\t// no loader in this environment, for example unit tests
+\t\t\treturn false;
+\t\t}
 \t}
 
 \tboolean roll(double probability) {
@@ -168,6 +204,168 @@ public final class SplashColors {
 }
 '''
 
+SOURCES["SplashColor.java"] = '''package dev.arrbrants.customsplash;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * A splash colour, either a single value or a multi-character gradient.
+ *
+ * <p>Accepted forms: {@code #RRGGBB} for a solid colour,
+ * {@code #RRGGBB,#RRGGBB[,...]} for a gradient spread over the text and
+ * {@code rainbow} / {@code rainbow:degrees} for a hue cycle. Anything else
+ * (including {@code null} and blank input) is rejected.</p>
+ */
+public final class SplashColor {
+\tprivate static final int DEFAULT_HUE_SPREAD = 15;
+
+\tprivate final int[] stops;
+\tprivate final boolean rainbow;
+\tprivate final int hueSpread;
+
+\tprivate SplashColor(int[] stops, boolean rainbow, int hueSpread) {
+\t\tthis.stops = stops;
+\t\tthis.rainbow = rainbow;
+\t\tthis.hueSpread = hueSpread;
+\t}
+
+\t/**
+\t * @return the parsed colour, or {@code null} when the value is missing or invalid
+\t */
+\tpublic static SplashColor parse(String value) {
+\t\tif (value == null) {
+\t\t\treturn null;
+\t\t}
+\t\tString text = value.trim();
+\t\tif (text.isEmpty()) {
+\t\t\treturn null;
+\t\t}
+\t\tif (text.regionMatches(true, 0, "rainbow", 0, 7)) {
+\t\t\treturn parseRainbow(text);
+\t\t}
+\t\tList<Integer> colors = new ArrayList<>();
+\t\tfor (String part : text.split(",")) {
+\t\t\tString candidate = part.trim();
+\t\t\tif (candidate.regionMatches(true, 0, "gradient:", 0, 9)) {
+\t\t\t\tcandidate = candidate.substring(9).trim();
+\t\t\t}
+\t\t\tint rgb = SplashColors.parse(candidate);
+\t\t\tif (rgb < 0) {
+\t\t\t\treturn null;
+\t\t\t}
+\t\t\tcolors.add(rgb);
+\t\t}
+\t\tif (colors.isEmpty()) {
+\t\t\treturn null;
+\t\t}
+\t\tint[] stops = new int[colors.size()];
+\t\tfor (int i = 0; i < stops.length; i++) {
+\t\t\tstops[i] = colors.get(i);
+\t\t}
+\t\treturn new SplashColor(stops, false, 0);
+\t}
+
+\tprivate static SplashColor parseRainbow(String text) {
+\t\tif (text.length() == 7) {
+\t\t\treturn new SplashColor(null, true, DEFAULT_HUE_SPREAD);
+\t\t}
+\t\tif (text.charAt(7) != \':\') {
+\t\t\treturn null;
+\t\t}
+\t\ttry {
+\t\t\tint spread = Integer.parseInt(text.substring(8).trim());
+\t\t\tif (spread < 0 || spread > 360) {
+\t\t\t\treturn null;
+\t\t\t}
+\t\t\treturn new SplashColor(null, true, spread);
+\t\t} catch (NumberFormatException exception) {
+\t\t\treturn null;
+\t\t}
+\t}
+
+\tpublic boolean isSolid() {
+\t\treturn !rainbow && stops.length == 1;
+\t}
+
+\t/**
+\t * @return the packed RGB value, or {@code -1} when the colour is not solid
+\t */
+\tpublic int solidRgb() {
+\t\treturn isSolid() ? stops[0] : -1;
+\t}
+
+\t/**
+\t * @return one RGB value per character of {@code text}, never {@code null}
+\t */
+\tpublic int[] colorsFor(String text) {
+\t\tint length = text.length();
+\t\tint[] colors = new int[length];
+\t\tif (isSolid()) {
+\t\t\tArrays.fill(colors, stops[0]);
+\t\t\treturn colors;
+\t\t}
+\t\tif (rainbow) {
+\t\t\tfor (int i = 0; i < length; i++) {
+\t\t\t\tcolors[i] = hueToRgb(i * hueSpread);
+\t\t\t}
+\t\t\treturn colors;
+\t\t}
+\t\tfor (int i = 0; i < length; i++) {
+\t\t\tcolors[i] = sample(stops, length == 1 ? 0.0D : (double) i / (length - 1));
+\t\t}
+\t\treturn colors;
+\t}
+
+\tprivate static int sample(int[] stops, double position) {
+\t\tdouble scaled = Math.max(0.0D, Math.min(1.0D, position)) * (stops.length - 1);
+\t\tint index = (int) scaled;
+\t\tdouble fraction = scaled - index;
+\t\tif (index >= stops.length - 1) {
+\t\t\treturn stops[stops.length - 1];
+\t\t}
+\t\treturn interpolate(stops[index], stops[index + 1], fraction);
+\t}
+
+\tprivate static int interpolate(int from, int to, double fraction) {
+\t\tint red = Math.round(lerp(from >> 16 & 0xFF, to >> 16 & 0xFF, fraction));
+\t\tint green = Math.round(lerp(from >> 8 & 0xFF, to >> 8 & 0xFF, fraction));
+\t\tint blue = Math.round(lerp(from & 0xFF, to & 0xFF, fraction));
+\t\treturn red << 16 | green << 8 | blue;
+\t}
+
+\tprivate static float lerp(int from, int to, double fraction) {
+\t\treturn (float) (from + (to - from) * fraction);
+\t}
+
+\tprivate static int hueToRgb(int hue) {
+\t\tfloat position = (((hue % 360) + 360) % 360) / 360f;
+\t\tint sector = (int) (position * 6);
+\t\tfloat fraction = position * 6 - sector;
+\t\tfloat value = 1f;
+\t\tfloat minuend = value * (1 - fraction);
+\t\tfloat descending = value * (1 - (1 - fraction));
+\t\tfloat red;
+\t\tfloat green;
+\t\tfloat blue;
+\t\tswitch (sector % 6) {
+\t\t\tcase 0: red = value; green = descending; blue = 0f; break;
+\t\t\tcase 1: red = minuend; green = value; blue = 0f; break;
+\t\t\tcase 2: red = 0f; green = value; blue = descending; break;
+\t\t\tcase 3: red = 0f; green = minuend; blue = value; break;
+\t\t\tcase 4: red = descending; green = 0f; blue = value; break;
+\t\t\tdefault: red = value; green = 0f; blue = minuend; break;
+\t\t}
+\t\treturn toChannel(red) << 16 | toChannel(green) << 8 | toChannel(blue);
+\t}
+
+\tprivate static int toChannel(float value) {
+\t\treturn Math.max(0, Math.min(255, Math.round(value * 255)));
+\t}
+}
+'''
+
 SOURCES["SplashEntry.java"] = '''package dev.arrbrants.customsplash;
 
 import java.util.List;
@@ -180,6 +378,7 @@ public final class SplashEntry {
 \tpublic int weight = 1;
 \tpublic String color;
 \tpublic Conditions conditions;
+\tprivate SplashColor colorSpec;
 
 \tpublic SplashEntry() {
 \t}
@@ -204,7 +403,25 @@ public final class SplashEntry {
 \t\treturn SplashColors.parse(color);
 \t}
 
+\t/**
+\t * @return the parsed colour specification, or {@code null} when unset/invalid
+\t */
+\tpublic SplashColor colorSpec() {
+\t\tif (colorSpec == null) {
+\t\t\tcolorSpec = SplashColor.parse(color);
+\t\t}
+\t\treturn colorSpec;
+\t}
+
 \tpublic boolean matches(SplashContext context) {
+\t\treturn matchesConditions(conditions, context);
+\t}
+
+\t/**
+\t * Evaluate the supplied conditions without needing a stored entry.
+\t * Visible for testing; a {@code null} block matches everything.
+\t */
+\tstatic boolean matchesConditions(Conditions conditions, SplashContext context) {
 \t\treturn conditions == null || conditions.matches(context);
 \t}
 
@@ -369,6 +586,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.time.format.DateTimeFormatter;
 import java.util.Random;
 
 /**
@@ -379,7 +597,7 @@ import java.util.Random;
  * drawn. When nothing matches, the vanilla splash is used.</p>
  */
 public final class SplashRegistry {
-\tprivate static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("custom-splash.json");
+\tprivate static Path configPathCache;
 \tprivate static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 \tprivate static final List<SplashEntry> REGISTERED = Collections.synchronizedList(new ArrayList<SplashEntry>());
 \tprivate static final Random RNG = new Random();
@@ -387,6 +605,8 @@ public final class SplashRegistry {
 \tprivate static volatile List<SplashEntry> resourcePackEntries = Collections.emptyList();
 \tprivate static volatile long resourcePackLoadedAt;
 \tprivate static final long RESOURCE_PACK_TTL_MS = 5000L;
+\tprivate static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+\tprivate static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
 \tprivate SplashRegistry() {
 \t}
@@ -496,27 +716,34 @@ public final class SplashRegistry {
 \t\tif (pool.isEmpty()) {
 \t\t\treturn Optional.empty();
 \t\t}
+\t\tSplashEntry chosen = chooseWeighted(pool, RNG);
+\t\tSplashColor color = chosen.colorSpec();
+\t\treturn Optional.of(new Picked(format(chosen.text, context), color == null ? -1 : color.solidRgb(), color));
+\t}
+
+\t/**
+\t * Pick one entry using relative weights. Visible for testing.
+\t */
+\tstatic SplashEntry chooseWeighted(List<SplashEntry> pool, Random random) {
 \t\tint total = 0;
 \t\tfor (SplashEntry entry : pool) {
 \t\t\ttotal += entry.weightOrDefault();
 \t\t}
-\t\tint roll = RNG.nextInt(total);
-\t\tSplashEntry chosen = pool.get(pool.size() - 1);
+\t\tint roll = random.nextInt(total);
 \t\tfor (SplashEntry entry : pool) {
 \t\t\troll -= entry.weightOrDefault();
 \t\t\tif (roll < 0) {
-\t\t\t\tchosen = entry;
-\t\t\t\tbreak;
+\t\t\t\treturn entry;
 \t\t\t}
 \t\t}
-\t\treturn Optional.of(new Picked(format(chosen.text, context), chosen.rgb()));
+\t\treturn pool.get(pool.size() - 1);
 \t}
 
 \t/**
 \t * Reload the JSON config file, creating it with defaults when missing.
 \t */
 \tpublic static void reload() {
-\t\tconfig = SplashConfig.load(CONFIG_PATH, GSON);
+\t\tconfig = SplashConfig.load(configPath(), GSON);
 \t\trefreshResourcePacks();
 \t}
 
@@ -535,12 +762,41 @@ public final class SplashRegistry {
 \t * @return the path of the JSON config file
 \t */
 \tpublic static Path configPath() {
-\t\treturn CONFIG_PATH;
+\t\tPath path = configPathCache;
+\t\tif (path == null) {
+\t\t\tpath = FabricLoader.getInstance().getConfigDir().resolve("custom-splash.json");
+\t\t\tconfigPathCache = path;
+\t\t}
+\t\treturn path;
 \t}
 
-\tprivate static String format(String text, SplashContext context) {
+\t/**
+\t\t* Replace the supported placeholders. Unknown tokens are left untouched so
+\t\t* that text such as an emoticon keeps working.
+\t */
+\tstatic String format(String text, SplashContext context) {
+\t\tif (text.indexOf('{') < 0) {
+\t\t\treturn text;
+\t\t}
 \t\tString player = context.playerName();
-\t\treturn text.replace("{player}", player == null ? "player" : player);
+\t\tString name = player == null ? "player" : player;
+\t\tString[] tokens = {
+\t\t\t"{player}", name, "{username}", name,
+\t\t\t"{date}", context.date().format(DATE_FORMAT),
+\t\t\t"{time}", context.time().format(TIME_FORMAT),
+\t\t\t"{mods}", context.modCount(),
+\t\t\t"{mods_count}", context.modCount(),
+\t\t\t"{mc_version}", context.gameVersion(),
+\t\t\t"{mc}", context.gameVersion(),
+\t\t\t"{version}", context.gameVersion(),
+\t\t};
+\t\tString result = text;
+\t\tfor (int i = 0; i < tokens.length; i += 2) {
+\t\t\tif (tokens[i + 1] != null) {
+\t\t\t\tresult = result.replace(tokens[i], tokens[i + 1]);
+\t\t\t}
+\t\t}
+\t\treturn result;
 \t}
 
 \t/**
@@ -548,11 +804,15 @@ public final class SplashRegistry {
 \t */
 \tpublic static final class Picked {
 \t\tpublic final String text;
+\t\t/** the solid RGB value, or {@code -1} when unset or multi-coloured */
 \t\tpublic final int rgb;
+\t\t/** the full colour specification, or {@code null} when unset */
+\t\tpublic final SplashColor color;
 
-\t\tPicked(String text, int rgb) {
+\t\tPicked(String text, int rgb, SplashColor color) {
 \t\t\tthis.text = text;
 \t\t\tthis.rgb = rgb;
+\t\t\tthis.color = color;
 \t\t}
 \t}
 }
@@ -592,7 +852,13 @@ public final class SplashResourcePack {
 \t}
 
 \tstatic List<SplashEntry> load() {
-\t\tPath gameDir = FabricLoader.getInstance().getGameDir();
+\t\tPath gameDir;
+\t\ttry {
+\t\t\tgameDir = FabricLoader.getInstance().getGameDir();
+\t\t} catch (RuntimeException | LinkageError ignored) {
+\t\t\t// no loader in this environment, for example unit tests
+\t\t\treturn Collections.emptyList();
+\t\t}
 \t\tPath packsDir = gameDir.resolve("resourcepacks");
 \t\tif (!Files.isDirectory(packsDir)) {
 \t\t\treturn Collections.emptyList();
@@ -683,6 +949,7 @@ public final class SplashResourcePack {
 
 MIXIN_YARN = '''package dev.arrbrants.customsplash.mixin;
 
+import dev.arrbrants.customsplash.SplashColor;
 import dev.arrbrants.customsplash.SplashColors;
 import dev.arrbrants.customsplash.SplashRegistry;
 import net.minecraft.client.resource.SplashTextResourceSupplier;
@@ -695,14 +962,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class SplashManagerMixin {
 \t@Inject(at = @At("HEAD"), method = "get", cancellable = true)
 \tprivate void getSplash(CallbackInfoReturnable<String> cir) {
-\t\tSplashRegistry.pickEntry().ifPresent(picked ->
-\t\t\t\tcir.setReturnValue(picked.rgb >= 0 ? SplashColors.legacyPrefix(picked.rgb) + picked.text : picked.text));
+\t\tSplashRegistry.pickEntry().ifPresent(picked -> cir.setReturnValue(colourize(picked)));
+\t}
+
+\tprivate static String colourize(SplashRegistry.Picked picked) {
+\t\tSplashColor color = picked.color;
+\t\tif (color == null) {
+\t\t\treturn picked.text;
+\t\t}
+\t\tif (color.isSolid()) {
+\t\t\treturn SplashColors.legacyPrefix(color.solidRgb()) + picked.text;
+\t\t}
+\t\tint[] colors = color.colorsFor(picked.text);
+\t\tStringBuilder builder = new StringBuilder();
+\t\tfor (int i = 0; i < picked.text.length(); i++) {
+\t\t\tbuilder.append(SplashColors.legacyPrefix(colors[i])).append(picked.text.charAt(i));
+\t\t}
+\t\treturn builder.toString();
 \t}
 }
 '''
 
 MIXIN_OLD = '''package dev.arrbrants.customsplash.mixin;
 
+import dev.arrbrants.customsplash.SplashColor;
 import dev.arrbrants.customsplash.SplashColors;
 import dev.arrbrants.customsplash.SplashRegistry;
 import net.minecraft.client.resources.SplashManager;
@@ -715,14 +998,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class SplashManagerMixin {
 \t@Inject(at = @At("HEAD"), method = "getSplash", cancellable = true)
 \tprivate void getSplash(CallbackInfoReturnable<String> cir) {
-\t\tSplashRegistry.pickEntry().ifPresent(picked ->
-\t\t\t\tcir.setReturnValue(picked.rgb >= 0 ? SplashColors.legacyPrefix(picked.rgb) + picked.text : picked.text));
+\t\tSplashRegistry.pickEntry().ifPresent(picked -> cir.setReturnValue(colourize(picked)));
+\t}
+
+\tprivate static String colourize(SplashRegistry.Picked picked) {
+\t\tSplashColor color = picked.color;
+\t\tif (color == null) {
+\t\t\treturn picked.text;
+\t\t}
+\t\tif (color.isSolid()) {
+\t\t\treturn SplashColors.legacyPrefix(color.solidRgb()) + picked.text;
+\t\t}
+\t\tint[] colors = color.colorsFor(picked.text);
+\t\tStringBuilder builder = new StringBuilder();
+\t\tfor (int i = 0; i < picked.text.length(); i++) {
+\t\t\tbuilder.append(SplashColors.legacyPrefix(colors[i])).append(picked.text.charAt(i));
+\t\t}
+\t\treturn builder.toString();
 \t}
 }
 '''
 
 MIXIN_NEW = '''package dev.arrbrants.customsplash.mixin;
 
+import dev.arrbrants.customsplash.SplashColor;
 import dev.arrbrants.customsplash.SplashRegistry;
 import net.minecraft.client.gui.components.SplashRenderer;
 import net.minecraft.client.resources.SplashManager;
@@ -745,12 +1044,8 @@ public class SplashManagerMixin {
 \t}
 
 \tprivate static SplashRenderer createRenderer(SplashRegistry.Picked picked) {
-\t\tMutableComponent component = Component.literal(picked.text);
-\t\tif (picked.rgb >= 0) {
-\t\t\tcomponent = component.withStyle(Style.EMPTY.withColor(TextColor.fromRgb(picked.rgb)));
-\t\t}
 \t\ttry {
-\t\t\treturn SplashRenderer.class.getConstructor(Component.class).newInstance(component);
+\t\t\treturn SplashRenderer.class.getConstructor(Component.class).newInstance(buildComponent(picked));
 \t\t} catch (NoSuchMethodException ignored) {
 \t\t\ttry {
 \t\t\t\treturn SplashRenderer.class.getConstructor(String.class).newInstance(picked.text);
@@ -760,6 +1055,23 @@ public class SplashManagerMixin {
 \t\t} catch (ReflectiveOperationException exception) {
 \t\t\tthrow new IllegalStateException("Unable to create splash renderer", unwrap(exception));
 \t\t}
+\t}
+
+\tprivate static MutableComponent buildComponent(SplashRegistry.Picked picked) {
+\t\tSplashColor color = picked.color;
+\t\tif (color == null) {
+\t\t\treturn Component.literal(picked.text);
+\t\t}
+\t\tif (color.isSolid()) {
+\t\t\treturn Component.literal(picked.text).withStyle(Style.EMPTY.withColor(TextColor.fromRgb(color.solidRgb())));
+\t\t}
+\t\tint[] colors = color.colorsFor(picked.text);
+\t\tMutableComponent root = Component.empty();
+\t\tfor (int i = 0; i < picked.text.length(); i++) {
+\t\t\troot.append(Component.literal(String.valueOf(picked.text.charAt(i)))
+\t\t\t\t\t.withStyle(Style.EMPTY.withColor(TextColor.fromRgb(colors[i]))));
+\t\t}
+\t\treturn root;
 \t}
 
 \tprivate static Throwable unwrap(ReflectiveOperationException exception) {

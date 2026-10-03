@@ -10,6 +10,7 @@ public final class SplashEntry {
 	public int weight = 1;
 	public String color;
 	public Conditions conditions;
+	private SplashColor colorSpec;
 
 	public SplashEntry() {
 	}
@@ -34,7 +35,25 @@ public final class SplashEntry {
 		return SplashColors.parse(color);
 	}
 
+	/**
+	 * @return the parsed colour specification, or {@code null} when unset/invalid
+	 */
+	public SplashColor colorSpec() {
+		if (colorSpec == null) {
+			colorSpec = SplashColor.parse(color);
+		}
+		return colorSpec;
+	}
+
 	public boolean matches(SplashContext context) {
+		return matchesConditions(conditions, context);
+	}
+
+	/**
+	 * Evaluate the supplied conditions without needing a stored entry.
+	 * Visible for testing; a {@code null} block matches everything.
+	 */
+	static boolean matchesConditions(Conditions conditions, SplashContext context) {
 		return conditions == null || conditions.matches(context);
 	}
 

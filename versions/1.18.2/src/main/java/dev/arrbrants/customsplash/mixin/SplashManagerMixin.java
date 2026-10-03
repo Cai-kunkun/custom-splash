@@ -1,5 +1,6 @@
 package dev.arrbrants.customsplash.mixin;
 
+import dev.arrbrants.customsplash.SplashColor;
 import dev.arrbrants.customsplash.SplashColors;
 import dev.arrbrants.customsplash.SplashRegistry;
 import net.minecraft.client.resources.SplashManager;
@@ -12,7 +13,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class SplashManagerMixin {
 	@Inject(at = @At("HEAD"), method = "getSplash", cancellable = true)
 	private void getSplash(CallbackInfoReturnable<String> cir) {
-		SplashRegistry.pickEntry().ifPresent(picked ->
-				cir.setReturnValue(picked.rgb >= 0 ? SplashColors.legacyPrefix(picked.rgb) + picked.text : picked.text));
+		SplashRegistry.pickEntry().ifPresent(picked -> cir.setReturnValue(colourize(picked)));
+	}
+
+	private static String colourize(SplashRegistry.Picked picked) {
+		SplashColor color = picked.color;
+		if (color == null) {
+			return picked.text;
+		}
+		if (color.isSolid()) {
+			return SplashColors.legacyPrefix(color.solidRgb()) + picked.text;
+		}
+		int[] colors = color.colorsFor(picked.text);
+		StringBuilder builder = new StringBuilder();
+		for (int i = 0; i < picked.text.length(); i++) {
+			builder.append(SplashColors.legacyPrefix(colors[i])).append(picked.text.charAt(i));
+		}
+		return builder.toString();
 	}
 }

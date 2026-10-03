@@ -37,6 +37,7 @@ def main() -> None:
                 archive.read("dev/arrbrants/customsplash/SplashEntry.class")
                 archive.read("dev/arrbrants/customsplash/SplashContext.class")
                 archive.read("dev/arrbrants/customsplash/SplashColors.class")
+                archive.read("dev/arrbrants/customsplash/SplashColor.class")
                 archive.read("dev/arrbrants/customsplash/SplashResourcePack.class")
             except KeyError as error:
                 raise SystemExit(f"{jar.name}: missing {error}") from error

@@ -18,7 +18,7 @@ final class SplashContext {
 	private final String playerName;
 	private final Random random;
 
-	private SplashContext(LocalTime time, LocalDate date, String playerName, Random random) {
+	SplashContext(LocalTime time, LocalDate date, String playerName, Random random) {
 		this.time = time;
 		this.date = date;
 		this.playerName = playerName;
@@ -41,8 +41,44 @@ final class SplashContext {
 		return playerName;
 	}
 
+	/**
+	 * @return the running Minecraft version, or null when unavailable
+	 */
+	String gameVersion() {
+		try {
+			Class<?> minecraft = Class.forName("net.minecraft.client.Minecraft");
+			Object instance = invoke(minecraft, null, "getInstance");
+			if (instance == null) {
+				return null;
+			}
+			Object version = invoke(instance.getClass(), instance, "getLaunchedVersion", "getGameVersion");
+			return version instanceof String ? (String) version : null;
+		} catch (Throwable ignored) {
+			return null;
+		}
+	}
+
+	/**
+	 * @return the number of loaded mods, or null when unavailable
+	 */
+	String modCount() {
+		try {
+			return String.valueOf(FabricLoader.getInstance().getAllMods().size());
+		} catch (RuntimeException | LinkageError ignored) {
+			return null;
+		}
+	}
+
 	boolean hasMod(String modId) {
-		return modId != null && FabricLoader.getInstance().isModLoaded(modId);
+		if (modId == null) {
+			return false;
+		}
+		try {
+			return FabricLoader.getInstance().isModLoaded(modId);
+		} catch (RuntimeException | LinkageError ignored) {
+			// no loader in this environment, for example unit tests
+			return false;
+		}
 	}
 
 	boolean roll(double probability) {
