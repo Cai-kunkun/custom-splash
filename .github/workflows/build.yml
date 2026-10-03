@@ -65,6 +65,17 @@ jobs:
         run: python3 scripts/verify_release_artifacts.py build/releases
       - name: compute mod version
         run: echo "MOD_VERSION=$(grep -E '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_ENV"
+      - name: sync modrinth description
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          MODRINTH_ID: ${{ vars.MODRINTH_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MODRINTH_TOKEN" ] || [ -z "$MODRINTH_ID" ]; then
+            echo "Modrinth token or project id not configured, skipping"
+            exit 0
+          fi
+          python3 scripts/update_modrinth_page.py
       - name: publish github release
         env:
           GH_TOKEN: ${{ github.token }}
