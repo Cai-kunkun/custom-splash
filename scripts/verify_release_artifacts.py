@@ -1,55 +1,149 @@
 #!/usr/bin/env python3
-"""Validate the complete set of release jars before publishing anywhere."""
+"""Validate the complete set of release jars before publishing anywhere.
 
-import json
+Every build target produces exactly one jar. Fabric jars carry a
+``fabric.mod.json`` at the archive root, Forge jars carry
+``META-INF/mods.toml``; the loader is inferred from which of the two is
+present, so the two families can share this validation pass.
+"""
+
 import re
 import sys
 import zipfile
 from pathlib import Path
 
+# Classes shared by both loaders, plus the loader-specific platform class.
+SHARED_CLASSES = (
+    "dev/arrbrants/customsplash/SplashRegistry.class",
+    "dev/arrbrants/customsplash/SplashConfig.class",
+    "dev/arrbrants/customsplash/SplashEntry.class",
+    "dev/arrbrants/customsplash/SplashContext.class",
+    "dev/arrbrants/customsplash/SplashColors.class",
+    "dev/arrbrants/customsplash/SplashColor.class",
+    "dev/arrbrants/customsplash/SplashResourcePack.class",
+    "dev/arrbrants/customsplash/SplashPlatform.class",
+    "dev/arrbrants/customsplash/mixin/SplashManagerMixin.class",
+)
+
+PLATFORM_CLASS = {
+    "fabric": "dev/arrbrants/customsplash/FabricSplashPlatform.class",
+    "forge": "dev/arrbrants/customsplash/ForgeSplashPlatform.class",
+}
+
+
+def read_properties(root: Path, project: str) -> dict[str, str]:
+    lines = (root / "versions" / project / "gradle.properties").read_text().splitlines()
+    return dict(
+        line.split("=", 1)
+        for line in lines
+        if "=" in line and not line.startswith("#")
+    )
+
+
+def load_targets(root: Path) -> list[tuple[str, str]]:
+    """Return (project, loader) pairs for every release target."""
+    fabric = [
+        (version, "fabric")
+        for version in (root / "supported-versions.txt").read_text().splitlines()
+    ]
+    forge = [
+        (f"{version}-forge", "forge")
+        for version in (root / "supported-forge-versions.txt").read_text().splitlines()
+    ]
+    return fabric + forge
+
+
+def target_prefix(root: Path, project: str, loader: str) -> str:
+    props = read_properties(root, project)
+    mod_version = props["mod_version"]
+    minecraft = props["minecraft_version"]
+    if loader == "forge":
+        return f"custom-splash-{minecraft}-forge-{mod_version}+forge-mc{minecraft}."
+    return f"custom-splash-{minecraft}-{mod_version}+mc{minecraft}."
+
+
+def check_fabric_metadata(jar_name: str, metadata: dict, minecraft: str, expected_version: str) -> list[str]:
+    errors = []
+    if metadata["depends"]["minecraft"] != f"={minecraft}":
+        errors.append(f"{jar_name}: incorrect Minecraft dependency")
+    if metadata["version"] != expected_version:
+        errors.append(
+            f"{jar_name}: metadata version {metadata['version']!r} does not match {expected_version!r}"
+        )
+    return errors
+
+
+def check_forge_metadata(jar_name: str, text: str, expected_version: str) -> list[str]:
+    errors = []
+    if 'modId="custom-splash"' not in text:
+        errors.append(f"{jar_name}: missing custom-splash modId in mods.toml")
+    match = re.search(r'^version="([^"]*)"$', text, flags=re.MULTILINE)
+    if not match:
+        errors.append(f"{jar_name}: missing version entry in mods.toml")
+    elif match.group(1) != expected_version:
+        errors.append(
+            f"{jar_name}: mods.toml version {match.group(1)!r} does not match {expected_version!r}"
+        )
+    return errors
+
 
 def main() -> None:
     release_dir = Path(sys.argv[1])
     root = Path(__file__).resolve().parents[1]
-    versions = (root / "supported-versions.txt").read_text().splitlines()
+    targets = load_targets(root)
     jars = list(release_dir.glob("*.jar"))
-    if len(jars) != len(versions):
-        raise SystemExit(f"Expected {len(versions)} jars, found {len(jars)}")
+    if len(jars) != len(targets):
+        raise SystemExit(f"Expected {len(targets)} jars, found {len(jars)}")
 
-    for minecraft in versions:
-        props = dict(
-            line.split("=", 1)
-            for line in (root / "versions" / minecraft / "gradle.properties").read_text().splitlines()
-            if "=" in line and not line.startswith("#")
-        )
-        prefix = f"custom-splash-{minecraft}-{props['mod_version']}+mc{minecraft}."
+    for project, loader in targets:
+        prefix = target_prefix(root, project, loader)
         matches = [jar for jar in jars if jar.name.startswith(prefix)]
         if len(matches) != 1:
-            raise SystemExit(f"Expected one jar for Minecraft {minecraft}, found {len(matches)}")
+            raise SystemExit(f"Expected one jar for {project}, found {len(matches)}")
 
         jar = matches[0]
-        with zipfile.ZipFile(jar) as archive:
-            try:
-                metadata = json.loads(archive.read("fabric.mod.json"))
-                registry = archive.read("dev/arrbrants/customsplash/SplashRegistry.class")
-                archive.read("dev/arrbrants/customsplash/mixin/SplashManagerMixin.class")
-                archive.read("dev/arrbrants/customsplash/SplashConfig.class")
-                archive.read("dev/arrbrants/customsplash/SplashEntry.class")
-                archive.read("dev/arrbrants/customsplash/SplashContext.class")
-                archive.read("dev/arrbrants/customsplash/SplashColors.class")
-                archive.read("dev/arrbrants/customsplash/SplashColor.class")
-                archive.read("dev/arrbrants/customsplash/SplashResourcePack.class")
-            except KeyError as error:
-                raise SystemExit(f"{jar.name}: missing {error}") from error
-        if metadata["depends"]["minecraft"] != f"={minecraft}":
-            raise SystemExit(f"{jar.name}: incorrect Minecraft dependency")
         if not re.fullmatch(rf"{re.escape(prefix)}[0-9a-f]{{8}}\.jar", jar.name):
             raise SystemExit(f"{jar.name}: missing 8-character commit hash")
-        if metadata["version"] != jar.name[len(f"custom-splash-{minecraft}-") : -4]:
-            raise SystemExit(f"{jar.name}: metadata version does not match jar filename")
-        if int.from_bytes(registry[6:8], "big") > int(props["java_version"]) + 44:
-            raise SystemExit(f"{jar.name}: Java class version exceeds configured target")
-        print(f"OK {minecraft}: {jar.name}")
+
+        props = read_properties(root, project)
+        commit = jar.name[len(prefix) : -len(".jar")]
+        if loader == "forge":
+            expected_version = f"{props['mod_version']}+forge-mc{props['minecraft_version']}.{commit}"
+        else:
+            expected_version = f"{props['mod_version']}+mc{props['minecraft_version']}.{commit}"
+
+        with zipfile.ZipFile(jar) as archive:
+            names = set(archive.namelist())
+            for class_name in SHARED_CLASSES + (PLATFORM_CLASS[loader],):
+                if class_name not in names:
+                    raise SystemExit(f"{jar.name}: missing {class_name}")
+
+            if loader == "fabric":
+                import json
+
+                metadata = json.loads(archive.read("fabric.mod.json"))
+                errors = check_fabric_metadata(
+                    jar.name, metadata, props["minecraft_version"], expected_version
+                )
+            else:
+                text = archive.read("META-INF/mods.toml").decode("utf-8")
+                errors = check_forge_metadata(jar.name, text, expected_version)
+            for error in errors:
+                raise SystemExit(error)
+
+        java_level = int(props["java_version"])
+        # Sanity-check the shared classes were compiled for a supported Java level.
+        registry_class = next(
+            name for name in SHARED_CLASSES if name.endswith("/SplashRegistry.class")
+        )
+        with zipfile.ZipFile(jar) as archive:
+            major = int.from_bytes(archive.read(registry_class)[6:8], "big")
+            if major > java_level + 44:
+                raise SystemExit(
+                    f"{jar.name}: Java class version exceeds configured target"
+                )
+
+        print(f"OK {project} ({loader}): {jar.name}")
 
 
 if __name__ == "__main__":

@@ -2,9 +2,9 @@ package dev.arrbrants.customsplash;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -187,7 +187,8 @@ public final class SplashRegistry {
 	public static Path configPath() {
 		Path path = configPathCache;
 		if (path == null) {
-			path = FabricLoader.getInstance().getConfigDir().resolve("custom-splash.json");
+			Path dir = SplashPlatform.get().getConfigDir();
+			path = dir == null ? Paths.get("config") : dir.resolve("custom-splash.json");
 			configPathCache = path;
 		}
 		return path;

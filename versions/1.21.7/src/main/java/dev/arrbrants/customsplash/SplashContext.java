@@ -1,6 +1,5 @@
 package dev.arrbrants.customsplash;
 
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.lang.reflect.Method;
 import java.time.LocalDate;
@@ -62,23 +61,12 @@ final class SplashContext {
 	 * @return the number of loaded mods, or null when unavailable
 	 */
 	String modCount() {
-		try {
-			return String.valueOf(FabricLoader.getInstance().getAllMods().size());
-		} catch (RuntimeException | LinkageError ignored) {
-			return null;
-		}
+		int count = SplashPlatform.get().loadedModCount();
+		return count < 0 ? null : String.valueOf(count);
 	}
 
 	boolean hasMod(String modId) {
-		if (modId == null) {
-			return false;
-		}
-		try {
-			return FabricLoader.getInstance().isModLoaded(modId);
-		} catch (RuntimeException | LinkageError ignored) {
-			// no loader in this environment, for example unit tests
-			return false;
-		}
+		return modId != null && SplashPlatform.get().isModLoaded(modId);
 	}
 
 	boolean roll(double probability) {

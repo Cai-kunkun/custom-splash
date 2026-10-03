@@ -1,19 +1,24 @@
 # Custom Splash
 
-A Fabric mod that replaces or extends the yellow splash text on the Minecraft
+A mod that replaces or extends the yellow splash text on the Minecraft
 title screen. Configure it with a JSON file or from code, add colours,
 gradients, rainbows, placeholders and conditions — all without touching the
 game files.
 
-- **Fabric only**, no Fabric API required.
-- **Minecraft 1.14 through 26.3** — every stable release, 48 versions in total.
-- Client-side only; nothing changes in multiplayer.
+- **Fabric and Forge**, no other mods required.
+- **Fabric: Minecraft 1.14 through 26.3** — every stable release, 48 versions.
+- **Forge: Minecraft 1.16.5 through 1.20.4** — 13 versions (ForgeGradle builds).
+
+Client-side only; nothing changes in multiplayer.
 
 ## Installation
 
 Drop the JAR for your Minecraft version into `mods/`. On first launch the mod
 creates `config/custom-splash.json`. Until you edit it the title screen shows
 `Check your custom splash config file to customize!`.
+
+Forge downloads use the jars with `-forge-` in the filename; Fabric downloads
+use the plain `custom-splash-<mc>-…` jars.
 
 ## Configuration
 
@@ -118,3 +123,18 @@ public class MyMod implements ModInitializer {
 The API also exposes `remove(String)`, `clear()`, `list()`, `count()`, and
 `reload()` (re-reads the config file and enabled resource packs). `pick()`
 returns the chosen text and `pickEntry()` returns it together with its colour.
+
+For Forge mods, register splashes during mod construction:
+
+```java
+import dev.arrbrants.customsplash.SplashRegistry;
+
+@Mod("mymod")
+public class MyMod {
+    public MyMod() {
+        SplashRegistry.add("Hello! Forge!");
+    }
+}
+```
+
+The `SplashRegistry` API is identical on both loaders.

@@ -5,7 +5,8 @@ Features implemented here: JSON config file, weighted entries, display
 conditions, colour support and an extended public API.
 
 The shared sources contain no Minecraft compile-time references (player lookup is
-reflective), so the exact same files work on every supported version. Only the
+reflective) and touch the loader only through SplashPlatform, so the exact same
+files work on every Fabric and Forge version. Only the
 mixin differs between versions: pre-1.16 uses the SplashManager API
 (SplashTextResourceSupplier#get under Yarn, SplashManager#getSplash under Mojang
 mappings), 1.20+ uses SplashRenderer.
@@ -20,9 +21,90 @@ MIXIN_DIR = PACKAGE_DIR + "/mixin"
 
 SOURCES = {}
 
+SOURCES["SplashPlatform.java"] = '''package dev.arrbrants.customsplash;
+
+import java.nio.file.Path;
+
+/**
+ * The loader-specific bits the shared sources need. Fabric and Forge each
+ * install their own implementation at mod construction time; until then a
+ * no-op fallback is used, so the classes never touch a loader directly.
+ */
+public interface SplashPlatform {
+	/**
+	 * @return the config directory, or {@code null} when unavailable
+	 */
+	Path getConfigDir();
+
+	/**
+	 * @return the game directory, or {@code null} when unavailable
+	 */
+	Path getGameDir();
+
+	/**
+	 * @param modId a mod id
+	 * @return whether the mod is loaded, {@code false} when no loader is present
+	 */
+	boolean isModLoaded(String modId);
+
+	/**
+	 * @return the number of loaded mods, or {@code -1} when unavailable
+	 */
+	int loadedModCount();
+
+	/**
+	 * @return the active platform, never {@code null}
+	 */
+	static SplashPlatform get() {
+		return Holder.INSTANCE;
+	}
+
+	/**
+	 * Replace the active platform. Loader entry points call this once during
+	 * construction; tests may install a stub.
+	 */
+	static void install(SplashPlatform platform) {
+		if (platform != null) {
+			Holder.INSTANCE = platform;
+		}
+	}
+
+	/** The fallback used before a loader installs itself. */
+	enum Unavailable implements SplashPlatform {
+		INSTANCE;
+
+		@Override
+		public Path getConfigDir() {
+			return null;
+		}
+
+		@Override
+		public Path getGameDir() {
+			return null;
+		}
+
+		@Override
+		public boolean isModLoaded(String modId) {
+			return false;
+		}
+
+		@Override
+		public int loadedModCount() {
+			return -1;
+		}
+	}
+
+	final class Holder {
+		private static volatile SplashPlatform INSTANCE = Unavailable.INSTANCE;
+
+		private Holder() {
+		}
+	}
+}
+'''
+
 SOURCES["SplashContext.java"] = '''package dev.arrbrants.customsplash;
 
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.lang.reflect.Method;
 import java.time.LocalDate;
@@ -84,23 +166,12 @@ final class SplashContext {
 \t * @return the number of loaded mods, or null when unavailable
 \t */
 \tString modCount() {
-\t\ttry {
-\t\t\treturn String.valueOf(FabricLoader.getInstance().getAllMods().size());
-\t\t} catch (RuntimeException | LinkageError ignored) {
-\t\t\treturn null;
-\t\t}
+\t\tint count = SplashPlatform.get().loadedModCount();
+\t\treturn count < 0 ? null : String.valueOf(count);
 \t}
 
 \tboolean hasMod(String modId) {
-\t\tif (modId == null) {
-\t\t\treturn false;
-\t\t}
-\t\ttry {
-\t\t\treturn FabricLoader.getInstance().isModLoaded(modId);
-\t\t} catch (RuntimeException | LinkageError ignored) {
-\t\t\t// no loader in this environment, for example unit tests
-\t\t\treturn false;
-\t\t}
+\t\treturn modId != null && SplashPlatform.get().isModLoaded(modId);
 \t}
 
 \tboolean roll(double probability) {
@@ -579,9 +650,9 @@ SOURCES["SplashRegistry.java"] = '''package dev.arrbrants.customsplash;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -764,7 +835,8 @@ public final class SplashRegistry {
 \tpublic static Path configPath() {
 \t\tPath path = configPathCache;
 \t\tif (path == null) {
-\t\t\tpath = FabricLoader.getInstance().getConfigDir().resolve("custom-splash.json");
+\t\t\tPath dir = SplashPlatform.get().getConfigDir();
+\t\t\tpath = dir == null ? Paths.get("config") : dir.resolve("custom-splash.json");
 \t\t\tconfigPathCache = path;
 \t\t}
 \t\treturn path;
@@ -821,7 +893,6 @@ public final class SplashRegistry {
 SOURCES["SplashResourcePack.java"] = '''package dev.arrbrants.customsplash;
 
 import com.google.gson.Gson;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -852,11 +923,8 @@ public final class SplashResourcePack {
 \t}
 
 \tstatic List<SplashEntry> load() {
-\t\tPath gameDir;
-\t\ttry {
-\t\t\tgameDir = FabricLoader.getInstance().getGameDir();
-\t\t} catch (RuntimeException | LinkageError ignored) {
-\t\t\t// no loader in this environment, for example unit tests
+\t\tPath gameDir = SplashPlatform.get().getGameDir();
+\t\tif (gameDir == null) {
 \t\t\treturn Collections.emptyList();
 \t\t}
 \t\tPath packsDir = gameDir.resolve("resourcepacks");
@@ -1113,6 +1181,7 @@ def main() -> None:
         for name, content in SOURCES.items():
             (package_dir / name).write_text(content)
         (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(mixin_for(version))
+        write_fabric_platform(project)
         patch_initializer(project)
         print(f"updated {version}")
 
@@ -1120,13 +1189,83 @@ def main() -> None:
 def patch_initializer(project: Path) -> None:
     path = project / PACKAGE_DIR / "CustomSplash.java"
     source = path.read_text()
-    if "SplashRegistry.reload()" in source:
-        return
     marker = "public void onInitialize() {\n"
     if marker not in source:
         raise SystemExit(f"unexpected CustomSplash in {path}")
-    source = source.replace(marker, marker + "\t\tSplashRegistry.reload();\n", 1)
+    if "FabricSplashPlatform.install()" not in source:
+        source = source.replace(marker, marker + "\t\tFabricSplashPlatform.install();\n", 1)
+    if "SplashRegistry.reload()" not in source:
+        source = source.replace(marker, marker + "\t\tSplashRegistry.reload();\n", 1)
     path.write_text(source)
+
+
+FABRIC_PLATFORM = '''package dev.arrbrants.customsplash;
+
+import net.fabricmc.loader.api.FabricLoader;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+/**
+ * Fabric implementation of {@link SplashPlatform}, installed by
+ * {@link CustomSplash#onInitialize()}.
+ */
+public final class FabricSplashPlatform implements SplashPlatform {
+	private static final Path FALLBACK_CONFIG = Paths.get("config");
+
+	private FabricSplashPlatform() {
+	}
+
+	public static void install() {
+		SplashPlatform.install(new FabricSplashPlatform());
+	}
+
+	@Override
+	public Path getConfigDir() {
+		try {
+			return FabricLoader.getInstance().getConfigDir();
+		} catch (RuntimeException | LinkageError ignored) {
+			return FALLBACK_CONFIG;
+		}
+	}
+
+	@Override
+	public Path getGameDir() {
+		try {
+			return FabricLoader.getInstance().getGameDir();
+		} catch (RuntimeException | LinkageError ignored) {
+			return null;
+		}
+	}
+
+	@Override
+	public boolean isModLoaded(String modId) {
+		try {
+			return FabricLoader.getInstance().isModLoaded(modId);
+		} catch (RuntimeException | LinkageError ignored) {
+			return false;
+		}
+	}
+
+	@Override
+	public int loadedModCount() {
+		try {
+			return FabricLoader.getInstance().getAllMods().size();
+		} catch (RuntimeException | LinkageError ignored) {
+			return -1;
+		}
+	}
+}
+'''
+
+
+def write_fabric_platform(project: Path) -> None:
+    """Emit the Fabric-only platform implementation, which is not shared."""
+    path = project / PACKAGE_DIR / "FabricSplashPlatform.java"
+    if not path.exists() or path.read_text() != FABRIC_PLATFORM:
+        path.write_text(FABRIC_PLATFORM)
+
+
 
 
 if __name__ == "__main__":

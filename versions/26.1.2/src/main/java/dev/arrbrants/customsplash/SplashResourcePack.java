@@ -1,7 +1,6 @@
 package dev.arrbrants.customsplash;
 
 import com.google.gson.Gson;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -32,11 +31,8 @@ public final class SplashResourcePack {
 	}
 
 	static List<SplashEntry> load() {
-		Path gameDir;
-		try {
-			gameDir = FabricLoader.getInstance().getGameDir();
-		} catch (RuntimeException | LinkageError ignored) {
-			// no loader in this environment, for example unit tests
+		Path gameDir = SplashPlatform.get().getGameDir();
+		if (gameDir == null) {
 			return Collections.emptyList();
 		}
 		Path packsDir = gameDir.resolve("resourcepacks");

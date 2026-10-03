@@ -14,18 +14,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
       - name: setup JDK 25 for Minecraft 26.x
-        if: matrix.shard == 4
+        if: matrix.shard == 3 || matrix.shard == 4
         uses: actions/setup-java@v5
         with:
           java-version: '25'
           distribution: 'microsoft'
+      - name: setup JDK 17 for ForgeGradle 5
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'microsoft'
+      - name: record Forge Java home
+        run: echo "FORGE_JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
       - name: setup jdk
         uses: actions/setup-java@v5
         with:
@@ -35,10 +42,16 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew versions/*/gradlew
+      - name: verify generated sources
+        if: matrix.shard == 0
+        run: |
+          python3 scripts/generate_common_sources.py
+          python3 scripts/generate_forge_projects.py
+          git diff --exit-code
       - name: run unit tests
         run: ./gradlew :tests:test --no-daemon
       - name: build and collect all versions
-        run: ./gradlew verifyReleases -PbuildShard=${{ matrix.shard }} -PbuildShardCount=5
+        run: ./gradlew verifyReleases -PbuildShard=${{ matrix.shard }} -PbuildShardCount=6
       - name: capture build artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -92,9 +105,16 @@ jobs:
           fi
           curl -fsS "https://api.modrinth.com/v3/project/$MODRINTH_ID/version" -o "$RUNNER_TEMP/modrinth-versions.json"
           for file in build/releases/*.jar; do
-            meta=$(unzip -p "$file" fabric.mod.json)
-            version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['version'])")
-            mc_version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['depends']['minecraft'].lstrip('='))")
+            if unzip -l "$file" | grep -q "META-INF/mods.toml"; then
+              loader="forge"
+              version=$(unzip -p "$file" META-INF/mods.toml | sed -nE 's/^version="(.*)"$/\1/p' | head -1)
+              mc_version=$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-forge-.*/\1/')
+            else
+              loader="fabric"
+              meta=$(unzip -p "$file" fabric.mod.json)
+              version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['version'])")
+              mc_version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['depends']['minecraft'].lstrip('='))")
+            fi
             if python3 - "$RUNNER_TEMP/modrinth-versions.json" "$version" <<'PY'
           import json, sys
           versions = json.load(open(sys.argv[1]))
@@ -104,9 +124,9 @@ jobs:
               echo "skipping existing Modrinth version $version"
               continue
             fi
-            echo "publishing $file for Minecraft $mc_version as $version"
+            echo "publishing $file for Minecraft $mc_version ($loader) as $version"
             curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
               -H "Authorization: $MODRINTH_TOKEN" \
-              -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":[\"$mc_version\"],\"loaders\":[\"fabric\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
+              -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":[\"$mc_version\"],\"loaders\":[\"$loader\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
               -F "file=@$file;type=application/java-archive" > /dev/null
           done
