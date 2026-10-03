@@ -140,6 +140,7 @@ jobs:
             fi
             echo "publishing $file for Minecraft $mc_version ($loader) as $version"
             published=false
+            limit_reached=false
             for attempt in 1 2 3; do
               if curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
                 -H "Authorization: $MODRINTH_TOKEN" \
@@ -151,9 +152,21 @@ jobs:
               fi
               echo "attempt $attempt for $version failed; Modrinth response:"
               cat "$RUNNER_TEMP/modrinth-response.json" 2>/dev/null || true
+              if grep -q '"error":"limit_reached"' "$RUNNER_TEMP/modrinth-response.json" 2>/dev/null; then
+                limit_reached=true
+                break
+              fi
               sleep 10
             done
             if [ "$published" != "true" ]; then
+              if [ "$limit_reached" = "true" ]; then
+                echo "::warning::Modrinth daily version upload limit (150/day, UTC) reached; deferring the remaining uploads"
+                if [ "$failed" -ne 0 ]; then
+                  echo "::error::$failed Modrinth upload(s) failed before the limit was reached"
+                  exit 1
+                fi
+                exit 0
+              fi
               echo "::error::Failed to publish $version to Modrinth"
               failed=$((failed + 1))
             fi
