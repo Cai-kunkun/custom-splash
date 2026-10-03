@@ -12,7 +12,7 @@ group = rootProject.maven_group
 base.archivesName = "custom-splash-${minecraft_version}-neoforge"
 
 neoForge {
-	version = "21.5.94"
+	version = "21.5.98"
 
 	mods {
 		"custom_splash" {

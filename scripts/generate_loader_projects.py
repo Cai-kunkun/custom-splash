@@ -16,7 +16,6 @@ ROOT = Path(__file__).resolve().parents[1]
 # because NeoForge took over from 1.20.2 onwards, and NeoForge starts at 1.20.2.
 FORGE_VERSIONS = [
     "1.16.5",
-    "1.17",
     "1.17.1",
     "1.18",
     "1.18.1",
@@ -34,71 +33,61 @@ FORGE_VERSIONS = [
 ]
 
 NEOFORGE_VERSIONS = [
+    # NeoForge only ships stable builds for some patch releases, so the ones
+    # that are beta-only (1.20.3, 1.20.5, 1.21.6, 1.21.7, 1.21.9 and 26.3) are
+    # left out instead of tracking beta versions that may move.
     "1.20.2",
-    "1.20.3",
     "1.20.4",
-    "1.20.5",
     "1.20.6",
     "1.21",
     "1.21.1",
     "1.21.3",
     "1.21.4",
     "1.21.5",
-    "1.21.6",
-    "1.21.7",
     "1.21.8",
-    "1.21.9",
     "1.21.10",
     "1.21.11",
     "26.1",
     "26.1.1",
     "26.1.2",
     "26.2",
-    "26.3",
 ]
 
 # Latest published loader version per Minecraft version.
 FORGE_LOADER_VERSION = {
     "1.16.5": "36.2.42",
-    "1.17": "37.1.1",
     "1.17.1": "37.1.1",
     "1.18": "38.0.17",
-    "1.18.1": "39.1.0",
-    "1.18.2": "40.3.10",
+    "1.18.1": "39.1.2",
+    "1.18.2": "40.3.12",
     "1.19": "41.1.0",
     "1.19.1": "42.0.9",
-    "1.19.2": "45.1.5",
-    "1.19.3": "47.1.3",
-    "1.19.4": "47.4.16",
+    "1.19.2": "43.5.2",
+    "1.19.3": "44.1.23",
+    "1.19.4": "45.4.5",
     "1.20": "46.0.14",
-    "1.20.1": "47.4.10",
-    "1.21": "51.1.9",
-    "1.21.1": "52.1.5",
-    "1.21.4": "54.1.13",
+    "1.20.1": "47.4.26",
+    "1.21": "51.0.33",
+    "1.21.1": "52.1.16",
+    "1.21.4": "54.1.18",
 }
 
 NEOFORGE_LOADER_VERSION = {
     "1.20.2": "20.2.93",
-    "1.20.3": "20.3.42",
     "1.20.4": "20.4.251",
-    "1.20.5": "20.5.32",
-    "1.20.6": "20.6.140",
+    "1.20.6": "20.6.141",
     "1.21": "21.0.167",
     "1.21.1": "21.1.252",
-    "1.21.3": "21.3.88",
-    "1.21.4": "21.4.155",
-    "1.21.5": "21.5.94",
-    "1.21.6": "21.6.20",
-    "1.21.7": "21.7.30",
-    "1.21.8": "21.8.3",
-    "1.21.9": "21.9.16",
-    "1.21.10": "21.10.20",
+    "1.21.3": "21.3.97",
+    "1.21.4": "21.4.158",
+    "1.21.5": "21.5.98",
+    "1.21.8": "21.8.54",
+    "1.21.10": "21.10.64",
     "1.21.11": "21.11.45",
-    "26.1": "26.1.1.114",
-    "26.1.1": "26.1.1.114",
+    "26.1": "26.1.2.114",
+    "26.1.1": "26.1.2.114",
     "26.1.2": "26.1.2.114",
-    "26.2": "26.2.44",
-    "26.3": "26.3.42",
+    "26.2": "26.2.0.88",
 }
 
 # Mixin toolchain: ForgeGradle rewrites the mod jar to SRG names, and the Mixin
@@ -200,7 +189,7 @@ minecraft {{
 		}}
 	}}
 
-	copyIdeResources = true
+	{copy_ide_resources}
 }}
 
 dependencies {{
@@ -629,18 +618,6 @@ def scaffold(loader: str, minecraft: str, versions: dict, extra: dict) -> None:
     }
     values.update(extra)
 
-    # Minimum loader version declared in mods.toml.
-    values.setdefault("loader_min_version", "4")
-    write(
-        project / "gradle.properties",
-        "\n".join(f"{key}={value}" for key, value in values.items()) + "\n",
-    )
-
-    write(
-        project / "settings.gradle",
-        SETTINGS.format(maven_url=extra["maven_url"], mc=minecraft, loader=loader),
-    )
-
     if loader == "forge":
         gradle_family = "6" if FORGE_GRADLE_VERSION[minecraft].startswith("6") else "5"
         # ForgeGradle 5 renames Minecraft members to SRG for the production game,
@@ -651,12 +628,30 @@ def scaffold(loader: str, minecraft: str, versions: dict, extra: dict) -> None:
             MIXIN_GRADLE_VERSION_FORGE_6 if gradle_family == "6" else MIXIN_GRADLE_VERSION_FORGE_5
         )
         values["mixin_version"] = MIXIN_VERSION
+        # Only ForgeGradle 6 knows the copyIdeResources property.
+        values["copy_ide_resources"] = "" if srg_runtime else "	copyIdeResources = true"
         template = FORGE_BUILD
     else:
         # ModDevGradle 2.0 dropped support for the earliest NeoForge releases.
-        needs_legacy_moddev = minecraft in ("1.20.2", "1.20.3", "1.20.4", "1.20.5")
+        needs_legacy_moddev = minecraft in ("1.20.2", "1.20.4")
         values["moddev_version"] = MODDEV_VERSION_LEGACY if needs_legacy_moddev else MODDEV_VERSION
         template = NEOFORGE_BUILD
+
+    # Minimum loader version declared in mods.toml.
+    values.setdefault("loader_min_version", "4")
+    # Keys that only exist in a rendered build.gradle must not leak into the
+    # property file the build reads.
+    properties = {key: value for key, value in values.items() if key != "copy_ide_resources"}
+    write(
+        project / "gradle.properties",
+        "\n".join(f"{key}={value}" for key, value in properties.items()) + "\n",
+    )
+
+    write(
+        project / "settings.gradle",
+        SETTINGS.format(maven_url=extra["maven_url"], mc=minecraft, loader=loader),
+    )
+
     write(project / "build.gradle", template.format(**values))
 
     # Shared sources come from the Fabric project of the same version, reusing the
