@@ -9,12 +9,16 @@ NeoForge-only classes: the @Mod entry point and the SplashPlatform
 implementation.
 
 Build recipes mirror the official MDK-<mc>-ModDevGradle templates:
-  - ModDevGradle 2.0.148 on Gradle 9.2.1 (Gradle 8.14.2 for 1.20.5)
+  - ModDevGradle 2.0.148 on Gradle 9.2.1
   - NeoForge versions pinned from the same MDKs
   - mixin config declared through the [[mixins]] block in neoforge.mods.toml;
     NeoForge runs on official names, so no refmap is needed
   - the neoforge.mods.toml templates with modLoader/loaderVersion only exist
     up to 1.21.4; newer versions drop both lines
+
+1.20.5 is the exception: ModDevGradle 2.x needs the neoforge-moddev-bundle
+variant that NeoForge 20.5 metadata predates, so that project uses the legacy
+NeoGradle userdev plugin (7.1.39) instead, matching its official NeoGradle MDK.
 
 Run from the repository root: python3 scripts/generate_neoforge_projects.py
 """
@@ -59,10 +63,13 @@ NEOFORGE_SPECS = {
 MODDED_GRADLE = "9.2.1"
 
 
+def uses_neogradle(minecraft: str) -> bool:
+    """NeoForge 20.5 predates the metadata ModDevGradle 2.x requires."""
+    return minecraft == "1.20.5"
+
+
 def gradle_distribution_url(minecraft: str) -> str:
-    # The official 1.20.5 MDK is still paired with Gradle 8.14.2.
-    version = "8.14.2" if minecraft == "1.20.5" else MODDED_GRADLE
-    return "https\\://services.gradle.org/distributions/gradle-%s-bin.zip" % version
+    return "https\\://services.gradle.org/distributions/gradle-%s-bin.zip" % MODDED_GRADLE
 
 
 def mixin_compatibility(minecraft: str) -> str:
@@ -137,6 +144,63 @@ jar {
 SETTINGS_GRADLE = r"""pluginManagement {
 	repositories {
 		gradlePluginPortal()
+	}
+}
+
+plugins {
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'custom-splash-%%MINECRAFT%%-neoforge'
+"""
+
+# NeoForge 20.5 metadata predates the neoforge-moddev-bundle variant that
+# ModDevGradle 2.x requires, so that project uses the legacy NeoGradle tooling
+# exactly like its official MDK-1.20.5-NeoGradle template.
+BUILD_GRADLE_NEOGRADLE = r"""plugins {
+	id 'java-library'
+	id 'net.neoforged.gradle.userdev' version '7.1.39'
+}
+
+def gitCommit = providers.exec {
+	commandLine 'git', 'rev-parse', '--short=8', 'HEAD'
+}.standardOutput.asText.getOrElse('').trim()
+
+version = "${rootProject.mod_version}+neoforge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
+group = rootProject.maven_group
+base.archivesName = "custom-splash-${minecraft_version}-neoforge"
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+dependencies {
+	implementation "net.neoforged:neoforge:${neo_version}"
+	compileOnly 'org.spongepowered:mixin:0.8.5'
+}
+
+processResources {
+	inputs.property 'version', project.version
+	filesMatching('META-INF/neoforge.mods.toml') {
+		expand version: project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = 'UTF-8'
+}
+
+// NeoForge runs on official names, so no reobfuscation or refmap is needed;
+// the mixin config is declared in neoforge.mods.toml.
+jar {
+	from(rootProject.file('LICENSE')) {
+		rename { "${it}_${base.archivesName.get()}" }
+	}
+}
+"""
+
+SETTINGS_GRADLE_NEOGRADLE = r"""pluginManagement {
+	repositories {
+		gradlePluginPortal()
+		maven { url = 'https://maven.neoforged.net/releases' }
 	}
 }
 
@@ -312,9 +376,15 @@ def main() -> None:
 
 		neo_version, java_version, classic = NEOFORGE_SPECS[minecraft]
 		project = ROOT / "versions" / f"{minecraft}-neoforge"
-		write(project, Path("build.gradle"), BUILD_GRADLE)
+		if uses_neogradle(minecraft):
+			build_gradle = BUILD_GRADLE_NEOGRADLE
+			settings_gradle = SETTINGS_GRADLE_NEOGRADLE
+		else:
+			build_gradle = BUILD_GRADLE
+			settings_gradle = SETTINGS_GRADLE
+		write(project, Path("build.gradle"), build_gradle)
 		write(project, Path("settings.gradle"),
-		      SETTINGS_GRADLE.replace("%%MINECRAFT%%", minecraft))
+		      settings_gradle.replace("%%MINECRAFT%%", minecraft))
 		write(project, Path("gradle.properties"),
 		      GRADLE_PROPERTIES
 		      .replace("%%MINECRAFT%%", minecraft)
