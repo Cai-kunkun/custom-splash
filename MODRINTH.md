@@ -10,6 +10,9 @@ game files.
 - **Forge: Minecraft 1.16.1 through 1.20.6** — every release with a Forge build, 20 versions.
 - **NeoForge: Minecraft 1.20.5 through 26.3** — 18 versions, including the 26.x line.
 
+Minecraft 1.16.0 and 1.17.0 have no Forge build and stay Fabric-only; 1.20.5 is
+Fabric + NeoForge (Forge never shipped for it).
+
 Client-side only; nothing changes in multiplayer.
 
 ## Installation

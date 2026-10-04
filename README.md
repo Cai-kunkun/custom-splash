@@ -13,13 +13,16 @@ directory and an entry in this list.
 
 The [Forge version list](supported-forge-versions.txt) covers every Minecraft
 release with a Forge build from **1.16.1 through 1.20.6** (20 versions). Forge
-never shipped for 1.16.0, 1.17.0 or 1.20.5, so those releases are Fabric-only.
-Each Forge project lives in `versions/<mc>-forge`.
+never shipped for 1.16.0 or 1.17.0, so those two releases are Fabric-only; for
+1.20.5 no Forge build exists either (see NeoForge below). Each Forge project
+lives in `versions/<mc>-forge`.
 
 The [NeoForge version list](supported-neoforge-versions.txt) covers **1.20.5
-through 26.3** (18 versions). NeoForge is the only mod loader available for
-1.20.5, and from 1.21 on it is the successor of the Forge line. Each NeoForge
-project lives in `versions/<mc>-neoforge`.
+and every 1.21.x and 26.x release through 26.3** (18 versions). NeoForge is the
+successor of the Forge line from 1.21 on, and it is the only loader besides
+Fabric with a build for 1.20.5. A few of the newest lines (1.21.2, 1.21.6,
+1.21.7, 1.21.9, 26.1, 26.1.1 and 26.3) only ship official beta builds, which
+the projects pin. Each NeoForge project lives in `versions/<mc>-neoforge`.
 
 Minecraft 1.16–1.21.x projects use `loom.officialMojangMappings()`; 26.x is
 distributed with official Mojang names already, so mappings must not be applied
