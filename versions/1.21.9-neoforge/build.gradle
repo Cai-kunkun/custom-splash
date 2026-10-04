@@ -1,0 +1,46 @@
+plugins {
+	id 'java-library'
+	id 'net.neoforged.moddev' version '2.0.148'
+}
+
+def gitCommit = providers.exec {
+	commandLine 'git', 'rev-parse', '--short=8', 'HEAD'
+}.standardOutput.asText.getOrElse('').trim()
+
+version = "${rootProject.mod_version}+neoforge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
+group = rootProject.maven_group
+base.archivesName = "custom-splash-${minecraft_version}-neoforge"
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+neoForge {
+	version = project.neo_version
+	mods {
+		"custom-splash" {
+			sourceSet(sourceSets.main)
+		}
+	}
+}
+
+dependencies {
+	compileOnly 'org.spongepowered:mixin:0.8.5'
+}
+
+processResources {
+	inputs.property 'version', project.version
+	filesMatching('META-INF/neoforge.mods.toml') {
+		expand version: project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = 'UTF-8'
+}
+
+// NeoForge runs on official names, so no reobfuscation or refmap is needed;
+// the mixin config is declared in neoforge.mods.toml.
+jar {
+	from(rootProject.file('LICENSE')) {
+		rename { "${it}_${base.archivesName.get()}" }
+	}
+}

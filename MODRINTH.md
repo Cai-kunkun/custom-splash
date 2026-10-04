@@ -5,9 +5,10 @@ title screen. Configure it with a JSON file or from code, add colours,
 gradients, rainbows, placeholders and conditions — all without touching the
 game files.
 
-- **Fabric and Forge**, no other mods required.
+- **Fabric, Forge and NeoForge**, no other mods required.
 - **Fabric: Minecraft 1.14 through 26.3** — every stable release, 48 versions.
-- **Forge: Minecraft 1.16.5 through 1.20.4** — 13 versions (ForgeGradle builds).
+- **Forge: Minecraft 1.16.1 through 1.20.6** — every release with a Forge build, 20 versions.
+- **NeoForge: Minecraft 1.20.5 through 26.3** — 18 versions, including the 26.x line.
 
 Client-side only; nothing changes in multiplayer.
 
@@ -17,8 +18,9 @@ Drop the JAR for your Minecraft version into `mods/`. On first launch the mod
 creates `config/custom-splash.json`. Until you edit it the title screen shows
 `Check your custom splash config file to customize!`.
 
-Forge downloads use the jars with `-forge-` in the filename; Fabric downloads
-use the plain `custom-splash-<mc>-…` jars.
+Forge downloads use the jars with `-forge-` in the filename, NeoForge downloads
+the `-neoforge-` jars and Fabric downloads use the plain
+`custom-splash-<mc>-…` jars.
 
 ## Configuration
 
@@ -137,4 +139,19 @@ public class MyMod {
 }
 ```
 
-The `SplashRegistry` API is identical on both loaders.
+NeoForge mods use the injected mod event bus:
+
+```java
+import dev.arrbrants.customsplash.SplashRegistry;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.common.Mod;
+
+@Mod("mymod")
+public class MyMod {
+    public MyMod(IEventBus modEventBus) {
+        SplashRegistry.add("Hello! NeoForge!");
+    }
+}
+```
+
+The `SplashRegistry` API is identical on all loaders.

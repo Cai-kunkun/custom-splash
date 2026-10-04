@@ -1,0 +1,55 @@
+plugins {
+	id 'java'
+	id 'maven-publish'
+	id 'net.minecraftforge.gradle' version '[7.0.29,8.0)'
+}
+
+def gitCommit = providers.exec {
+	commandLine 'git', 'rev-parse', '--short=8', 'HEAD'
+}.standardOutput.asText.getOrElse('').trim()
+
+version = "${rootProject.mod_version}+forge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
+group = rootProject.maven_group
+base.archivesName = "custom-splash-${minecraft_version}-forge"
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+
+minecraft {
+	mappings channel: 'official', version: minecraft_version
+}
+
+repositories {
+	minecraft.mavenizer(it)
+	maven fg.forgeMaven
+	maven fg.minecraftLibsMaven
+	mavenCentral()
+}
+
+dependencies {
+	implementation minecraft.dependency("net.minecraftforge:forge:${minecraft_version}-${forge_version}")
+	compileOnly 'org.spongepowered:mixin:0.8.5'
+}
+
+processResources {
+	inputs.property 'version', project.version
+	inputs.property 'minecraft_version', minecraft_version
+	inputs.property 'forge_version', forge_version
+	filesMatching('META-INF/mods.toml') {
+		expand version: project.version, minecraft_version: minecraft_version, forge_version: forge_version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = 'UTF-8'
+}
+
+// 1.20.5+ runs on official names, so ForgeGradle 7 needs no reobfuscation and
+// the mixin needs no refmap; the config is announced via the manifest.
+jar {
+	manifest {
+		attributes 'MixinConfigs': 'customsplash.mixins.json'
+	}
+	from(rootProject.file('LICENSE')) {
+		rename { "${it}_${base.archivesName.get()}" }
+	}
+}

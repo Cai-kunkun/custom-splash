@@ -3,8 +3,9 @@
 
 Every build target produces exactly one jar. Fabric jars carry a
 ``fabric.mod.json`` at the archive root, Forge jars carry
-``META-INF/mods.toml``; the loader is inferred from which of the two is
-present, so the two families can share this validation pass.
+``META-INF/mods.toml`` and NeoForge jars carry
+``META-INF/neoforge.mods.toml``; the loader is inferred from which of the
+three is present, so the families can share this validation pass.
 """
 
 import re
@@ -12,7 +13,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-# Classes shared by both loaders, plus the loader-specific platform class.
+# Classes shared by every loader, plus the loader-specific platform class.
 SHARED_CLASSES = (
     "dev/arrbrants/customsplash/SplashRegistry.class",
     "dev/arrbrants/customsplash/SplashConfig.class",
@@ -28,6 +29,7 @@ SHARED_CLASSES = (
 PLATFORM_CLASS = {
     "fabric": "dev/arrbrants/customsplash/FabricSplashPlatform.class",
     "forge": "dev/arrbrants/customsplash/ForgeSplashPlatform.class",
+    "neoforge": "dev/arrbrants/customsplash/NeoForgeSplashPlatform.class",
 }
 
 
@@ -50,7 +52,11 @@ def load_targets(root: Path) -> list[tuple[str, str]]:
         (f"{version}-forge", "forge")
         for version in (root / "supported-forge-versions.txt").read_text().splitlines()
     ]
-    return fabric + forge
+    neoforge = [
+        (f"{version}-neoforge", "neoforge")
+        for version in (root / "supported-neoforge-versions.txt").read_text().splitlines()
+    ]
+    return fabric + forge + neoforge
 
 
 def target_prefix(root: Path, project: str, loader: str) -> str:
@@ -59,6 +65,8 @@ def target_prefix(root: Path, project: str, loader: str) -> str:
     minecraft = props["minecraft_version"]
     if loader == "forge":
         return f"custom-splash-{minecraft}-forge-{mod_version}+forge-mc{minecraft}."
+    if loader == "neoforge":
+        return f"custom-splash-{minecraft}-neoforge-{mod_version}+neoforge-mc{minecraft}."
     return f"custom-splash-{minecraft}-{mod_version}+mc{minecraft}."
 
 
@@ -73,16 +81,16 @@ def check_fabric_metadata(jar_name: str, metadata: dict, minecraft: str, expecte
     return errors
 
 
-def check_forge_metadata(jar_name: str, text: str, expected_version: str) -> list[str]:
+def check_mod_metadata(jar_name: str, text: str, expected_version: str) -> list[str]:
     errors = []
     if 'modId="custom-splash"' not in text:
-        errors.append(f"{jar_name}: missing custom-splash modId in mods.toml")
+        errors.append(f"{jar_name}: missing custom-splash modId in the mod metadata")
     match = re.search(r'^version="([^"]*)"$', text, flags=re.MULTILINE)
     if not match:
-        errors.append(f"{jar_name}: missing version entry in mods.toml")
+        errors.append(f"{jar_name}: missing version entry in the mod metadata")
     elif match.group(1) != expected_version:
         errors.append(
-            f"{jar_name}: mods.toml version {match.group(1)!r} does not match {expected_version!r}"
+            f"{jar_name}: mod metadata version {match.group(1)!r} does not match {expected_version!r}"
         )
     return errors
 
@@ -109,6 +117,8 @@ def main() -> None:
         commit = jar.name[len(prefix) : -len(".jar")]
         if loader == "forge":
             expected_version = f"{props['mod_version']}+forge-mc{props['minecraft_version']}.{commit}"
+        elif loader == "neoforge":
+            expected_version = f"{props['mod_version']}+neoforge-mc{props['minecraft_version']}.{commit}"
         else:
             expected_version = f"{props['mod_version']}+mc{props['minecraft_version']}.{commit}"
 
@@ -125,9 +135,12 @@ def main() -> None:
                 errors = check_fabric_metadata(
                     jar.name, metadata, props["minecraft_version"], expected_version
                 )
+            elif loader == "neoforge":
+                text = archive.read("META-INF/neoforge.mods.toml").decode("utf-8")
+                errors = check_mod_metadata(jar.name, text, expected_version)
             else:
                 text = archive.read("META-INF/mods.toml").decode("utf-8")
-                errors = check_forge_metadata(jar.name, text, expected_version)
+                errors = check_mod_metadata(jar.name, text, expected_version)
             for error in errors:
                 raise SystemExit(error)
 

@@ -14,20 +14,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
       - name: setup JDK 25 for Minecraft 26.x
-        if: matrix.shard == 3 || matrix.shard == 4
+        if: matrix.shard == 4 || matrix.shard == 8
         uses: actions/setup-java@v5
         with:
           java-version: '25'
           distribution: 'microsoft'
       - name: setup JDK 16 for Minecraft 1.17.1
-        if: matrix.shard == 4
+        if: matrix.shard == 5
         uses: actions/setup-java@v5
         with:
           java-version: '16'
@@ -53,11 +53,12 @@ jobs:
         run: |
           python3 scripts/generate_common_sources.py
           python3 scripts/generate_forge_projects.py
+          python3 scripts/generate_neoforge_projects.py
           git diff --exit-code
       - name: run unit tests
         run: ./gradlew :tests:test --no-daemon
       - name: build and collect all versions
-        run: ./gradlew verifyReleases -PbuildShard=${{ matrix.shard }} -PbuildShardCount=6
+        run: ./gradlew verifyReleases -PbuildShard=${{ matrix.shard }} -PbuildShardCount=9
       - name: capture build artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -119,7 +120,11 @@ jobs:
           curl -fsS "https://api.modrinth.com/v3/project/$MODRINTH_ID/version" -o "$RUNNER_TEMP/modrinth-versions.json"
           failed=0
           for file in build/releases/*.jar; do
-            if unzip -l "$file" | grep -q "META-INF/mods.toml"; then
+            if unzip -l "$file" | grep -q "META-INF/neoforge.mods.toml"; then
+              loader="neoforge"
+              version=$(unzip -p "$file" META-INF/neoforge.mods.toml | sed -nE 's/^version="(.*)"$/\1/p' | head -1)
+              mc_version=$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-neoforge-.*/\1/')
+            elif unzip -l "$file" | grep -q "META-INF/mods.toml"; then
               loader="forge"
               version=$(unzip -p "$file" META-INF/mods.toml | sed -nE 's/^version="(.*)"$/\1/p' | head -1)
               mc_version=$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-forge-.*/\1/')

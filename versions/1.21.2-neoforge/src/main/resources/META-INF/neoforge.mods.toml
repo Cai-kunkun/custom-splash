@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="CC0-1.0"
+
+[[mods]]
+modId="custom-splash"
+version="${version}"
+displayName="Custom Splash"
+authors="ArrBrants"
+description='''A mod that replaces or extends the title screen yellow splash text with custom texts, colours, gradients, placeholders and conditions.'''
+
+[[mixins]]
+config="customsplash.mixins.json"
+
+[[dependencies.custom-splash]]
+modId="neoforge"
+type="required"
+versionRange="[21.2.1-beta,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.custom-splash]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.2]"
+ordering="NONE"
+side="BOTH"

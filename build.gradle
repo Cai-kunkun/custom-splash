@@ -6,18 +6,22 @@ plugins {
 }
 
 // Fabric versions come from supported-versions.txt, Forge versions from
-// supported-forge-versions.txt. Every build target is [name, loader, minecraft]:
-// a Fabric project lives in versions/<mc>, a Forge project in versions/<mc>-forge.
+// supported-forge-versions.txt and NeoForge versions from
+// supported-neoforge-versions.txt. Every build target is [name, loader,
+// minecraft]: versions/<mc>, versions/<mc>-forge and versions/<mc>-neoforge.
 def fabricVersions = file('supported-versions.txt').readLines().findAll { it && !it.startsWith('#') }
 def forgeVersions = file('supported-forge-versions.txt').readLines().findAll { it && !it.startsWith('#') }
+def neoforgeVersions = file('supported-neoforge-versions.txt').readLines().findAll { it && !it.startsWith('#') }
 def fabricSet = fabricVersions.toSet()
 def allTargets = []
 fabricVersions.each { mc -> allTargets << [name: mc, loader: 'fabric', minecraft: mc] }
-forgeVersions.each { mc ->
-	if (!fabricSet.contains(mc)) {
-		throw new GradleException("Minecraft ${mc} is not a Fabric version project")
+[forge: forgeVersions, neoforge: neoforgeVersions].each { loader, versions ->
+	versions.each { mc ->
+		if (!fabricSet.contains(mc)) {
+			throw new GradleException("Minecraft ${mc} is not a Fabric version project")
+		}
+		allTargets << [name: "${mc}-${loader}", loader: loader, minecraft: mc]
 	}
-	allTargets << [name: "${mc}-forge", loader: 'forge', minecraft: mc]
 }
 
 def projectDirs = file('versions').listFiles()
@@ -25,7 +29,7 @@ def projectDirs = file('versions').listFiles()
 	.collect { it.name }
 def expectedNames = allTargets.collect { it.name }
 if (expectedNames.toSet().size() != expectedNames.size() || projectDirs.toSet() != expectedNames.toSet()) {
-	throw new GradleException('supported-versions.txt and supported-forge-versions.txt must list each version project exactly once')
+	throw new GradleException('supported-versions.txt, supported-forge-versions.txt and supported-neoforge-versions.txt must list each version project exactly once')
 }
 
 def shard = providers.gradleProperty('buildShard').orNull
@@ -47,7 +51,7 @@ def gitCommit = providers.exec {
 	commandLine 'git', 'rev-parse', '--short=8', 'HEAD'
 }.standardOutput.asText.getOrElse('').trim()
 
-// ForgeGradle 5 (1.16.5 - 1.19.4) needs Gradle 7, which cannot run on Java 21.
+// ForgeGradle 5 (1.16.1 - 1.19.4) needs Gradle 7, which cannot run on Java 21.
 // CI sets FORGE_JAVA_HOME to a JDK 17 installation; fall back to the current JVM.
 def forgeJavaHome = System.getenv('FORGE_JAVA_HOME') ?: System.getenv('JAVA_HOME') ?: System.getProperty('java.home')
 
@@ -62,6 +66,9 @@ def targetVersion = { target ->
 	if (target.loader == 'forge') {
 		return "${modVersion}+forge-mc${target.minecraft}"
 	}
+	if (target.loader == 'neoforge') {
+		return "${modVersion}+neoforge-mc${target.minecraft}"
+	}
 	return "${modVersion}+mc${target.minecraft}"
 }
 def targetJarBase = { target ->
@@ -74,8 +81,21 @@ def versionBuilds = targets.collect { target ->
 		group = 'build'
 		description = "Builds Custom Splash for ${target.loader} ${target.minecraft}."
 		workingDir versionDirectory
-		if (target.loader == 'forge' && forgeJavaHome) {
-			environment 'JAVA_HOME', forgeJavaHome
+		if (target.loader == 'forge') {
+			// ForgeGradle 5/6 targets older JDKs, ForgeGradle 7 (1.20.6) needs
+			// Java 21; pick the matching JDK for the child build.
+			def targetJava = Integer.parseInt(readVersionProperty("versions/${target.name}", 'java_version'))
+			def javaHome = targetJava >= 21 ? (System.getenv('JAVA_HOME_21_X64') ?: System.getenv('JAVA_HOME')) : forgeJavaHome
+			if (javaHome) {
+				environment 'JAVA_HOME', javaHome
+			}
+		} else if (target.loader == 'neoforge') {
+			// ModDevGradle wants a JDK 21+ daemon; the 26.x toolchain comes from
+			// org.gradle.java.installations.fromEnv in each project.
+			def java21Home = System.getenv('JAVA_HOME_21_X64')
+			if (java21Home) {
+				environment 'JAVA_HOME', java21Home
+			}
 		}
 		commandLine './gradlew', 'build', '--no-daemon'
 		inputs.files(fileTree(versionDirectory) {
@@ -94,7 +114,7 @@ tasks.register('buildAll') {
 
 tasks.register('collectJars', Sync) {
 	group = 'build'
-	description = 'Collects all remapped version jars into build/releases.'
+	description = 'Collects all version jars into build/releases.'
 	dependsOn versionBuilds
 	into layout.buildDirectory.dir('releases')
 	targets.each { target ->
@@ -104,13 +124,13 @@ tasks.register('collectJars', Sync) {
 	}
 }
 
-def checkForge = { File jar, String expectedVersion ->
+def checkModMetadata = { File jar, String metadataPath, String expectedVersion ->
 	new ZipFile(jar).withCloseable { zip ->
-		def entry = zip.getEntry('META-INF/mods.toml')
-		if (entry == null) throw new GradleException("Missing mods.toml in ${jar.name}")
+		def entry = zip.getEntry(metadataPath)
+		if (entry == null) throw new GradleException("Missing ${metadataPath} in ${jar.name}")
 		def text = zip.getInputStream(entry).getText('UTF-8')
 		if (!text.contains('modId="custom-splash"')) {
-			throw new GradleException("Invalid mods.toml in ${jar.name}")
+			throw new GradleException("Invalid ${metadataPath} in ${jar.name}")
 		}
 		def actual = text.readLines().find { it.startsWith('version="') }?.replaceFirst(/^version="(.*)"$/, '$1')
 		if (actual != expectedVersion) {
@@ -129,6 +149,7 @@ tasks.register('verifyReleases') {
 		if (jars.size() != targets.size()) {
 			throw new GradleException("Expected ${targets.size()} jars, found ${jars.size()}")
 		}
+		def platformClasses = [fabric: 'FabricSplashPlatform', forge: 'ForgeSplashPlatform', neoforge: 'NeoForgeSplashPlatform']
 		targets.each { target ->
 			def ver = targetVersion(target)
 			def expectedName = "custom-splash-${target.name}-${ver}${gitCommit ? ".${gitCommit}" : ''}.jar"
@@ -148,6 +169,10 @@ tasks.register('verifyReleases') {
 						throw new GradleException("Missing ${className} class in ${matches[0].name}")
 					}
 				}
+				def platformClass = platformClasses[target.loader]
+				if (zip.getEntry("dev/arrbrants/customsplash/${platformClass}.class") == null) {
+					throw new GradleException("Missing ${platformClass} class in ${matches[0].name}")
+				}
 				if (target.loader == 'fabric') {
 					def entry = zip.getEntry('fabric.mod.json')
 					if (entry == null) throw new GradleException("Missing fabric.mod.json in ${matches[0].name}")
@@ -156,8 +181,10 @@ tasks.register('verifyReleases') {
 						metadata.version != "${ver}${gitCommit ? ".${gitCommit}" : ''}") {
 						throw new GradleException("Invalid metadata in ${matches[0].name}")
 					}
+				} else if (target.loader == 'neoforge') {
+					checkModMetadata(matches[0], 'META-INF/neoforge.mods.toml', "${ver}${gitCommit ? ".${gitCommit}" : ''}")
 				} else {
-					checkForge(matches[0], "${ver}${gitCommit ? ".${gitCommit}" : ''}")
+					checkModMetadata(matches[0], 'META-INF/mods.toml', "${ver}${gitCommit ? ".${gitCommit}" : ''}")
 				}
 			}
 		}

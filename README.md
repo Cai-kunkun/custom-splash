@@ -1,7 +1,7 @@
 # Custom Splash
 
 A mod that replaces or extends the Minecraft title screen yellow splash text,
-available for **Fabric** and **Forge**.
+available for **Fabric**, **Forge** and **NeoForge**.
 
 ## Supported versions
 
@@ -11,11 +11,15 @@ The [Fabric version list](supported-versions.txt) covers every stable release fr
 Snapshots and pre-releases are not included. Adding a version requires both its
 directory and an entry in this list.
 
-The [Forge version list](supported-forge-versions.txt) covers **1.16.5 through
-1.20.4** (13 versions). Forge is not provided before 1.16.5 (Forge had no
-built-in Mixin) and the 1.20.5+ line is NeoForge territory, out of scope here.
-Each Forge project lives in `versions/<mc>-forge` and is generated separately
-from the Fabric side.
+The [Forge version list](supported-forge-versions.txt) covers every Minecraft
+release with a Forge build from **1.16.1 through 1.20.6** (20 versions). Forge
+never shipped for 1.16.0, 1.17.0 or 1.20.5, so those releases are Fabric-only.
+Each Forge project lives in `versions/<mc>-forge`.
+
+The [NeoForge version list](supported-neoforge-versions.txt) covers **1.20.5
+through 26.3** (18 versions). NeoForge is the only mod loader available for
+1.20.5, and from 1.21 on it is the successor of the Forge line. Each NeoForge
+project lives in `versions/<mc>-neoforge`.
 
 Minecraft 1.16–1.21.x projects use `loom.officialMojangMappings()`; 26.x is
 distributed with official Mojang names already, so mappings must not be applied
@@ -28,8 +32,8 @@ the intermediary/named namespaces in the wrong order (see
 `String`-returning splash API; newer versions use `SplashRenderer`. The public
 `SplashRegistry.add(String)` API is unchanged.
 Only Fabric Loader is required; Fabric API is not used by this mod. The Forge
-ports require no external dependencies either (only Forge itself plus Mixin,
-which the build resolves).
+and NeoForge ports require no external dependencies either (only the loader
+itself plus Mixin, which the build resolves).
 
 Build one version from its directory:
 
@@ -38,20 +42,24 @@ cd versions/1.20.1
 ./gradlew build
 ```
 
-Build a Forge target the same way from its directory:
+Build a Forge or NeoForge target the same way from its directory:
 
 ```sh
 cd versions/1.20.1-forge
 ./gradlew build          # ForgeGradle resolves Forge + Mixin as build deps
+cd versions/1.21.1-neoforge
+./gradlew build          # ModDevGradle resolves NeoForge + Mixin as build deps
 ```
 
-The Forge ports for 1.16.5–1.19.4 use ForgeGradle 5 (Gradle 7.6.4), which does
+The Forge ports for 1.16.1–1.19.4 use ForgeGradle 5 (Gradle 7.6.4), which does
 **not** run on Java 21: set `JAVA_HOME` to a JDK 17 before building them.
 ForgeGradle then compiles with the JDK matching each Minecraft version (Java 8
-for 1.16.5, Java 16 for 1.17.1, Java 17 for the rest), which it discovers
+for 1.16.x, Java 16 for 1.17.1, Java 17 for the rest), which it discovers
 through the `JAVA_HOME_8_X64`, `JAVA_HOME_16_X64` and `JAVA_HOME_17_X64`
 environment variables. The 1.20.x ports use ForgeGradle 6 (Gradle 8.13) and
-accept Java 17–21.
+accept Java 17–21; the 1.20.6 port uses ForgeGradle 7 (Gradle 9.6.0) on Java 21.
+The NeoForge ports use ModDevGradle (Gradle 9.2.1) on Java 21, with a Java 25
+toolchain for the 26.x line.
 
 Build every version, check each JAR, and collect them in `build/releases`:
 
@@ -59,12 +67,12 @@ Build every version, check each JAR, and collect them in `build/releases`:
 ./gradlew build
 ```
 
-For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCount=6`
-builds one of six non-overlapping groups. CI merges the groups and checks that
-all 61 targets were built before publishing. On CI, `FORGE_JAVA_HOME` points at
-a JDK 17 that the aggregator forwards to the ForgeGradle 5 child builds while
-the rest of the build runs on Java 21, and the runner's JDK 8 plus a JDK 16
-installed for Minecraft 1.17.1 satisfy ForgeGradle's per-version toolchains.
+For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCount=9`
+builds one of nine non-overlapping groups. CI merges the groups and checks that
+all 86 targets were built before publishing. On CI, `FORGE_JAVA_HOME` points at
+a JDK 17 that the aggregator forwards to the ForgeGradle 5/6 child builds while
+the rest of the build runs on Java 21, and additionally installed JDK 8/16/25
+plus the runner's JDK 21 satisfy the per-version toolchains.
 
 ## Configuration
 
@@ -189,9 +197,25 @@ public class MyMod {
 }
 ```
 
-The shared `SplashRegistry` API is identical on both loaders; only the entry
+NeoForge mods use the same pattern with the injected mod event bus:
+
+```java
+import dev.arrbrants.customsplash.SplashRegistry;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.common.Mod;
+
+@Mod("mymod")
+public class MyMod {
+    public MyMod(IEventBus modEventBus) {
+        SplashRegistry.add("Hello! NeoForge!");
+    }
+}
+```
+
+The shared `SplashRegistry` API is identical on all loaders; only the entry
 point and platform plumbing differ (see `SplashPlatform` and the
-`FabricSplashPlatform` / `ForgeSplashPlatform` implementations).
+`FabricSplashPlatform` / `ForgeSplashPlatform` / `NeoForgeSplashPlatform`
+implementations).
 
 When no custom splashes are configured or registered, the vanilla Minecraft
 splash is displayed normally.
@@ -200,17 +224,17 @@ splash is displayed normally.
 
 Every Java class shared between versions is generated by
 `scripts/generate_common_sources.py`, which is the single source of truth. After
-editing it, run the generator so all Fabric version directories stay identical,
-and re-run `scripts/generate_forge_projects.py` to refresh the Forge projects
-(they embed the same shared sources plus their loader-specific platform and
-entry point):
+editing it, run the generators so the Fabric, Forge and NeoForge directories
+stay identical (the latter two embed the same shared sources plus their
+loader-specific platform and entry point):
 
 ```sh
 python3 scripts/generate_common_sources.py
 python3 scripts/generate_forge_projects.py
+python3 scripts/generate_neoforge_projects.py
 ```
 
-Running either generator twice must not change anything, which CI checks before building.
+Running the generators twice must not change anything, which CI checks before building.
 
 ### Unit tests
 
@@ -231,10 +255,13 @@ after the release jars are verified, and CI runs them in every job.
 
 - `versions/<mc>` — one standalone Fabric project per Minecraft version
 - `versions/<mc>-forge` — one standalone Forge project per Forge version
+- `versions/<mc>-neoforge` — one standalone NeoForge project per NeoForge version
 - `scripts/generate_common_sources.py` — writes the shared (loader-agnostic) Java sources
 - `scripts/generate_forge_projects.py` — scaffolds the Forge projects
+- `scripts/generate_neoforge_projects.py` — scaffolds the NeoForge projects
 - `scripts/update_yarn_mappings.py` — refreshes the Yarn v2 mappings
 - `scripts/verify_release_artifacts.py` — validates a complete release set
 - `tests/` — JUnit 5 unit tests for the shared sources
 - `supported-versions.txt` — the Fabric version list
 - `supported-forge-versions.txt` — the Forge version list
+- `supported-neoforge-versions.txt` — the NeoForge version list
