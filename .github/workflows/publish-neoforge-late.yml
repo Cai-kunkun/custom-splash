@@ -1,0 +1,93 @@
+# Temporary workflow: publishes the two NeoForge versions whose Modrinth
+# version_number exceeded the 32 character limit during the regular release
+# run (1.21.10 and 1.21.11). Dispatch it manually once the Modrinth daily
+# quota has room; delete this file after the versions are published.
+name: publish missing neoforge versions
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'microsoft'
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: make gradle wrapper executable
+        run: chmod +x versions/*/gradlew
+      - name: build the two versions
+        run: |
+          set -euo pipefail
+          for mc in 1.21.10 1.21.11; do
+            (cd "versions/${mc}-neoforge" && ./gradlew build --no-daemon)
+          done
+      - name: publish to modrinth
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          MODRINTH_ID: ${{ vars.MODRINTH_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MODRINTH_TOKEN" ] || [ -z "$MODRINTH_ID" ]; then
+            echo "Modrinth token or project id not configured, skipping"
+            exit 0
+          fi
+          curl -fsS "https://api.modrinth.com/v3/project/$MODRINTH_ID/version" -o "$RUNNER_TEMP/modrinth-versions.json"
+          for mc in 1.21.10 1.21.11; do
+            file=$(find "versions/${mc}-neoforge/build/libs" -maxdepth 1 -name '*.jar' | head -1)
+            if [ -z "$file" ]; then
+              echo "::error::no jar found for $mc"
+              exit 1
+            fi
+            version=$(unzip -p "$file" META-INF/neoforge.mods.toml | sed -nE 's/^version="(.*)"$/\1/p' | head -1)
+            if [ "${#version}" -gt 32 ] && printf '%s' "$version" | grep -qE '\.[0-9a-f]{8}$'; then
+              # Same guard as the main workflow: Modrinth caps the number at 32 characters.
+              version="${version%.*}"
+            fi
+            if python3 - "$RUNNER_TEMP/modrinth-versions.json" "$version" <<'PY'
+          import json, sys
+          versions = json.load(open(sys.argv[1]))
+          sys.exit(0 if any(v['version_number'] == sys.argv[2] for v in versions) else 1)
+          PY
+            then
+              echo "skipping existing Modrinth version $version"
+              continue
+            fi
+            echo "publishing $file for Minecraft $mc (neoforge) as $version"
+            published=false
+            limit_reached=false
+            for attempt in 1 2 3; do
+              if curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
+                -H "Authorization: $MODRINTH_TOKEN" \
+                -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":[\"$mc\"],\"loaders\":[\"neoforge\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
+                -F "file=@$file;type=application/java-archive" -o "$RUNNER_TEMP/modrinth-response.json"
+              then
+                published=true
+                break
+              fi
+              echo "attempt $attempt for $version failed; Modrinth response:"
+              cat "$RUNNER_TEMP/modrinth-response.json" 2>/dev/null || true
+              if grep -q '"error":"limit_reached"' "$RUNNER_TEMP/modrinth-response.json" 2>/dev/null; then
+                limit_reached=true
+                break
+              fi
+              sleep 10
+            done
+            if [ "$published" != "true" ]; then
+              if [ "$limit_reached" = "true" ]; then
+                echo "::warning::Modrinth daily upload limit reached; rerun this workflow later"
+                continue
+              fi
+              echo "::error::Failed to publish $version"
+              exit 1
+            fi
+          done
