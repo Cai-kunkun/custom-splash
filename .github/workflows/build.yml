@@ -134,6 +134,10 @@ jobs:
               version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['version'])")
               mc_version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['depends']['minecraft'].lstrip('='))")
             fi
+            if [ "${#version}" -gt 32 ] && printf '%s' "$version" | grep -qE '\.[0-9a-f]{8}$'; then
+              # Modrinth caps version_number at 32 characters; drop the commit suffix
+              version="${version%.*}"
+            fi
             if python3 - "$RUNNER_TEMP/modrinth-versions.json" "$version" <<'PY'
           import json, sys
           versions = json.load(open(sys.argv[1]))
