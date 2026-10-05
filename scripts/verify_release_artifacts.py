@@ -46,32 +46,34 @@ def read_properties(root: Path, project: str) -> dict[str, str]:
     )
 
 
-def read_fabric_targets(root: Path) -> dict[str, list[str]]:
-    """Fabric project -> the Minecraft releases its single jar covers."""
+TARGET_FILES = {
+    "fabric": "fabric-targets.txt",
+    "forge": "forge-targets.txt",
+    "neoforge": "neoforge-targets.txt",
+}
+
+
+def read_targets(root: Path, loader: str) -> dict[str, list[str]]:
+    """Project -> the Minecraft releases its single jar covers."""
     targets: dict[str, list[str]] = {}
-    for line in (root / "fabric-targets.txt").read_text().splitlines():
+    for line in (root / TARGET_FILES[loader]).read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         parts = line.split()
-        if len(parts) < 4:
-            raise SystemExit(f"Malformed Fabric target line: {line}")
-        targets[parts[0]] = parts[3:]
+        if len(parts) < 3:
+            raise SystemExit(f"Malformed target line in {TARGET_FILES[loader]}: {line}")
+        targets[parts[0]] = parts[2:]
     return targets
 
 
 def load_targets(root: Path) -> list[tuple[str, str]]:
     """Return (project, loader) pairs for every release target."""
-    fabric = [(project, "fabric") for project in read_fabric_targets(root)]
-    forge = [
-        (f"{version}-forge", "forge")
-        for version in (root / "supported-forge-versions.txt").read_text().splitlines()
+    return [
+        (project, loader)
+        for loader in ("fabric", "forge", "neoforge")
+        for project in read_targets(root, loader)
     ]
-    neoforge = [
-        (f"{version}-neoforge", "neoforge")
-        for version in (root / "supported-neoforge-versions.txt").read_text().splitlines()
-    ]
-    return fabric + forge + neoforge
 
 
 def target_prefix(root: Path, project: str, loader: str) -> str:
@@ -100,10 +102,17 @@ def check_fabric_metadata(jar_name: str, metadata: dict, covered: list[str], exp
     return errors
 
 
-def check_mod_metadata(jar_name: str, text: str, expected_version: str) -> list[str]:
+def mc_marker(covered: list[str]) -> str:
+    """The Maven version range start a Forge or NeoForge jar has to declare."""
+    return f'versionRange="[{covered[0]},'
+
+
+def check_mod_metadata(jar_name: str, text: str, expected_version: str, marker: str) -> list[str]:
     errors = []
     if 'modId="custom-splash"' not in text:
         errors.append(f"{jar_name}: missing custom-splash modId in the mod metadata")
+    if marker not in text:
+        errors.append(f"{jar_name}: Minecraft range does not start at {marker}")
     match = re.search(r'^version="([^"]*)"$', text, flags=re.MULTILINE)
     if not match:
         errors.append(f"{jar_name}: missing version entry in the mod metadata")
@@ -118,12 +127,15 @@ def main() -> None:
     release_dir = Path(sys.argv[1])
     root = Path(__file__).resolve().parents[1]
     targets = load_targets(root)
-    fabric_targets = read_fabric_targets(root)
+    covered_by_target = {
+        loader: read_targets(root, loader) for loader in ("fabric", "forge", "neoforge")
+    }
     jars = list(release_dir.glob("*.jar"))
     if len(jars) != len(targets):
         raise SystemExit(f"Expected {len(targets)} jars, found {len(jars)}")
 
     for project, loader in targets:
+        covered = covered_by_target[loader][project]
         prefix = target_prefix(root, project, loader)
         matches = [jar for jar in jars if jar.name.startswith(prefix)]
         if len(matches) != 1:
@@ -153,14 +165,18 @@ def main() -> None:
 
                 metadata = json.loads(archive.read("fabric.mod.json"))
                 errors = check_fabric_metadata(
-                    jar.name, metadata, fabric_targets[project], expected_version
+                    jar.name, metadata, covered, expected_version
                 )
             elif loader == "neoforge":
                 text = archive.read("META-INF/neoforge.mods.toml").decode("utf-8")
-                errors = check_mod_metadata(jar.name, text, expected_version)
+                errors = check_mod_metadata(
+                    jar.name, text, expected_version, mc_marker(covered)
+                )
             else:
                 text = archive.read("META-INF/mods.toml").decode("utf-8")
-                errors = check_mod_metadata(jar.name, text, expected_version)
+                errors = check_mod_metadata(
+                    jar.name, text, expected_version, mc_marker(covered)
+                )
             for error in errors:
                 raise SystemExit(error)
 

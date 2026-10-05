@@ -195,19 +195,23 @@ jobs:
           for file in build/releases/*.jar; do
             if unzip -l "$file" | grep -q "META-INF/neoforge.mods.toml"; then
               loader="neoforge"
+              targets_file="neoforge-targets.txt"
               version=$(unzip -p "$file" META-INF/neoforge.mods.toml | sed -nE 's/^version="(.*)"$/\1/p' | head -1)
-              mc_versions=$(python3 -c 'import json,sys;print(json.dumps([sys.argv[1]]))' "$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-neoforge-.*/\1/')")
             elif unzip -l "$file" | grep -q "META-INF/mods.toml"; then
               loader="forge"
+              targets_file="forge-targets.txt"
               version=$(unzip -p "$file" META-INF/mods.toml | sed -nE 's/^version="(.*)"$/\1/p' | head -1)
-              mc_versions=$(python3 -c 'import json,sys;print(json.dumps([sys.argv[1]]))' "$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-forge-.*/\1/')")
             else
               loader="fabric"
+              targets_file="fabric-targets.txt"
               meta=$(unzip -p "$file" fabric.mod.json)
               version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['version'])")
-              # A Fabric jar covers a whole range, so publish every release it declares.
-              mc_versions=$(python3 -c "import json,sys;targets={l.split()[0]:l.split()[3:] for l in open('fabric-targets.txt') if l.strip() and not l.startswith('#')};print(json.dumps(targets[sys.argv[1]]))" "$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-.*/\1/')")
             fi
+            # One jar covers a whole release line, so publish every release it
+            # declares. The project name sits between the prefix and the mod
+            # version, e.g. custom-splash-1.16.1-forge-1.2.0+forge-mc1.16.1.<sha>.
+            project=$(basename "$file" | sed -E 's/^custom-splash-(.+)-[0-9]+\.[0-9]+\.[0-9]+\+.*/\1/')
+            mc_versions=$(python3 -c "import json,sys;t={l.split()[0]:l.split()[2:] for l in open(sys.argv[2]) if l.strip() and not l.startswith('#')};print(json.dumps(t[sys.argv[1]]))" "$project" "$targets_file")
             if [ "${#version}" -gt 32 ] && printf '%s' "$version" | grep -qE '\.[0-9a-f]{8}$'; then
               # Modrinth caps version_number at 32 characters; drop the commit suffix
               version="${version%.*}"

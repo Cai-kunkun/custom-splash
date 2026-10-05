@@ -1,9 +1,0 @@
-{
-	"required": true,
-	"package": "dev.arrbrants.customsplash.mixin",
-	"compatibilityLevel": "JAVA_8",
-	"refmap": "customsplash.refmap.json",
-	"minVersion": "0.8",
-	"client": ["SplashManagerMixin"],
-	"injectors": {"defaultRequire": 1}
-}

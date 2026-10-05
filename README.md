@@ -9,16 +9,40 @@ does nothing there.
 
 ## Supported versions
 
+Every loader is built once per release line rather than once per release, so the
+86 supported releases ship as **16 jars**. Each loader has a targets file mapping
+a project to the whole range its single jar covers, all in the same format:
+
+```
+<project> <compile-against> <covered minecraft versions...>
+```
+
+| Targets file | Covers | Targets |
+| --- | --- | --- |
+| [fabric-targets.txt](fabric-targets.txt) | 1.14 – 26.3 | 6 |
+| [forge-targets.txt](forge-targets.txt) | 1.16.1 – 1.20.6 | 6 |
+| [neoforge-targets.txt](neoforge-targets.txt) | 1.20.5 – 26.3 | 4 |
+
+Adding a release means adding it to the matching `supported-*-versions.txt` list
+and to the targets file line it belongs on; a new API era needs its own project
+directory as well.
+
+Membership is a runtime claim, not just a build one: every release on a line has
+to resolve the mixin to the same name. A green build only proves it compiles.
+
+- **Fabric** resolves against intermediary mappings. SplashManager is
+  `net/minecraft/class_4008` and getSplash is `method_18174` from 1.14.4 through
+  1.21.11, and SplashRenderer is `net/minecraft/class_8519` from 1.20 through
+  1.21.11, so those releases can share a jar.
+- **Forge** up to 1.20.4 ships a mixin refmap, so a line must resolve getSplash to
+  the same SRG name. CI's `report mixin refmap targets` step prints the name each
+  jar bakes in.
+- **NeoForge** and **Forge 1.20.6** carry no refmap at all, so their mixins resolve
+  by literal name and the grouping is limited only by the build era.
+
 The [Fabric version list](supported-versions.txt) covers every stable release from
 **1.14 through 26.3** (48 versions, including all patch releases in between).
-Snapshots and pre-releases are not included. Fabric is not built once per release
-though: [fabric-targets.txt](fabric-targets.txt) maps each project to the whole
-range its single jar covers, so those 48 releases ship as **6 jars**. Adding a
-release means adding it to `supported-versions.txt` and to the matching line of
-`fabric-targets.txt`; a new API era needs its own project directory as well.
-Membership is a runtime claim, not just a build one — the mixin target and the
-intermediary names it resolves to must be identical across a line. A green build
-only proves it compiles, so smoke test a jar before releasing it.
+Snapshots and pre-releases are not included.
 
 The [Forge version list](supported-forge-versions.txt) covers every Minecraft
 release with a Forge build from **1.16.1 through 1.20.6** (20 versions). Forge
@@ -58,9 +82,9 @@ cd versions/1.20          # one jar for 1.20 through 1.21.11
 Build a Forge or NeoForge target the same way from its directory:
 
 ```sh
-cd versions/1.20.1-forge
+cd versions/1.20-forge      # one jar for 1.20 through 1.20.4
 ./gradlew build          # ForgeGradle resolves Forge + Mixin as build deps
-cd versions/1.21.1-neoforge
+cd versions/1.21-neoforge   # one jar for 1.21 through 1.21.4
 ./gradlew build          # ModDevGradle resolves NeoForge + Mixin as build deps
 ```
 
@@ -96,7 +120,7 @@ Build every version, check each JAR, and collect them in `build/releases`:
 
 For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCount=9`
 builds one of nine non-overlapping groups. CI merges the groups and checks that
-all 44 targets were built before publishing. On CI, `FORGE_JAVA_HOME` points at
+all 16 targets were built before publishing. On CI, `FORGE_JAVA_HOME` points at
 a JDK 17 that the aggregator forwards to the ForgeGradle 5/6 child builds while
 the rest of the build runs on Java 21, and additionally installed JDK 8/16/25
 plus the runner's JDK 21 satisfy the per-version toolchains.
@@ -310,10 +334,10 @@ NeoForge build one jar per release and are not part of the smoke matrix.
 
 ## Repository layout
 
-- `versions/<era>` — one standalone Fabric project per API era; its single jar covers every release on its `fabric-targets.txt` line
-- `versions/<mc>-forge` — one standalone Forge project per Forge version
-- `versions/<mc>-neoforge` — one standalone NeoForge project per NeoForge version
-- `fabric-targets.txt` — the Fabric target list: project, compile version and covered releases
+- `versions/<era>` — one standalone Fabric project per API line; its single jar covers every release on its `fabric-targets.txt` line
+- `versions/<mc>-forge` — one standalone Forge project per Forge line
+- `versions/<mc>-neoforge` — one standalone NeoForge project per NeoForge line
+- `fabric-targets.txt`, `forge-targets.txt`, `neoforge-targets.txt` — the target lists: project, compile version and covered releases
 - `scripts/generate_common_sources.py` — writes the shared (loader-agnostic) Java sources
 - `scripts/generate_forge_projects.py` — scaffolds the Forge projects
 - `scripts/generate_neoforge_projects.py` — scaffolds the NeoForge projects

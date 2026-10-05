@@ -30,8 +30,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from generate_common_sources import (SOURCES, fabric_project_for, mixin_for,  # noqa: E402
-                                    read_supported_versions, write_icon)
+from generate_common_sources import (NEOFORGE_TARGETS_FILE, SOURCES,  # noqa: E402
+                                    check_range, fabric_project_for, mixin_for,
+                                    read_supported_versions, read_targets, write_icon)
 
 PACKAGE_DIR = Path("src/main/java/dev/arrbrants/customsplash")
 RESOURCES_DIR = Path("src/main/resources")
@@ -257,7 +258,7 @@ side="BOTH"
 [[dependencies.custom-splash]]
 modId="minecraft"
 type="required"
-versionRange="[%%MC%%]"
+versionRange="%%MC_RANGE%%"
 ordering="NONE"
 side="BOTH"
 """
@@ -287,7 +288,7 @@ side="BOTH"
 [[dependencies.custom-splash]]
 modId="minecraft"
 type="required"
-versionRange="[%%MC%%]"
+versionRange="%%MC_RANGE%%"
 ordering="NONE"
 side="BOTH"
 """
@@ -370,18 +371,36 @@ public class CustomSplash {
 """
 
 
-def main() -> None:
-	versions = NEOFORGE_VERSIONS_FILE.read_text().splitlines()
-	fabric_versions = read_supported_versions()
-	for minecraft in versions:
-		if minecraft not in NEOFORGE_SPECS:
-			raise SystemExit(f"no NeoForge spec for {minecraft}")
-		if minecraft not in fabric_versions:
-			raise SystemExit(f"{minecraft} is not a Fabric version project")
+def next_version(version: str) -> str:
+	"""The release just after version, used as an exclusive upper bound."""
+	parts = version.split(".")
+	parts[-1] = str(int(parts[-1]) + 1)
+	return ".".join(parts)
 
-		neo_version, java_version, classic = NEOFORGE_SPECS[minecraft]
-		project = ROOT / "versions" / f"{minecraft}-neoforge"
-		if uses_neogradle(minecraft):
+
+def main() -> None:
+	fabric_versions = read_supported_versions()
+	targets = read_targets(NEOFORGE_TARGETS_FILE)
+	listed = [version for _target, _compile, covered in targets for version in covered]
+	if listed != NEOFORGE_VERSIONS_FILE.read_text().split():
+		raise SystemExit(
+			"neoforge-targets.txt must cover supported-neoforge-versions.txt exactly, in order")
+	for target, compile_version, covered in targets:
+		if not target.endswith("-neoforge"):
+			raise SystemExit(f"a NeoForge target must be named <mc>-neoforge, got {target}")
+		for minecraft in covered:
+			if minecraft not in NEOFORGE_SPECS:
+				raise SystemExit(f"no NeoForge spec for {minecraft}")
+			if minecraft not in fabric_versions:
+				raise SystemExit(f"{minecraft} is not a Fabric version project")
+
+		neo_version, java_version, classic = NEOFORGE_SPECS[compile_version]
+		# Stop just after the newest release in the line, so the range covers the
+		# whole line and nothing past it.
+		mc_range = f"[{covered[0]},{next_version(covered[-1])})"
+		check_range(covered, next_version(covered[-1]), NEOFORGE_TARGETS_FILE)
+		project = ROOT / "versions" / target
+		if uses_neogradle(compile_version):
 			build_gradle = BUILD_GRADLE_NEOGRADLE
 			settings_gradle = SETTINGS_GRADLE_NEOGRADLE
 		else:
@@ -389,29 +408,30 @@ def main() -> None:
 			settings_gradle = SETTINGS_GRADLE
 		write(project, Path("build.gradle"), build_gradle)
 		write(project, Path("settings.gradle"),
-		      settings_gradle.replace("%%MINECRAFT%%", minecraft))
+		      settings_gradle.replace("%%MINECRAFT%%", compile_version))
 		write(project, Path("gradle.properties"),
 		      GRADLE_PROPERTIES
-		      .replace("%%MINECRAFT%%", minecraft)
+		      .replace("%%MINECRAFT%%", compile_version)
 		      .replace("%%NEO%%", neo_version)
 		      .replace("%%JAVA%%", java_version))
-		copy_wrapper(project, minecraft)
+		copy_wrapper(project, compile_version)
 
 		for name, content in SOURCES.items():
 			write(project, PACKAGE_DIR / name, content)
 		write(project, PACKAGE_DIR / "NeoForgeSplashPlatform.java", NEOFORGE_PLATFORM)
 		write(project, PACKAGE_DIR / "CustomSplash.java", NEOFORGE_INITIALIZER)
-		write(project, PACKAGE_DIR / "mixin" / "SplashManagerMixin.java", mixin_for(minecraft))
+		write(project, PACKAGE_DIR / "mixin" / "SplashManagerMixin.java",
+		      mixin_for(compile_version))
 
 		template = NEOFORGE_MODS_TOML if classic else NEOFORGE_MODS_TOML_MODERN
 		write(project, RESOURCES_DIR / "META-INF" / "neoforge.mods.toml",
 		      template
 		      .replace("%%NEO%%", neo_version)
-		      .replace("%%MC%%", minecraft))
+		      .replace("%%MC_RANGE%%", mc_range))
 		write(project, RESOURCES_DIR / "customsplash.mixins.json",
-		      MIXINS_JSON.replace("%%COMPAT%%", mixin_compatibility(minecraft)))
+		      MIXINS_JSON.replace("%%COMPAT%%", mixin_compatibility(compile_version)))
 		write_icon(project)
-		print(f"updated neoforge {minecraft}")
+		print(f"updated neoforge {target}")
 
 
 if __name__ == "__main__":

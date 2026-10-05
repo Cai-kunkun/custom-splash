@@ -18,7 +18,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSIONS_FILE = ROOT / "supported-versions.txt"
-TARGETS_FILE = ROOT / "fabric-targets.txt"
+FABRIC_TARGETS_FILE = ROOT / "fabric-targets.txt"
+FORGE_TARGETS_FILE = ROOT / "forge-targets.txt"
+NEOFORGE_TARGETS_FILE = ROOT / "neoforge-targets.txt"
 PACKAGE_DIR = "src/main/java/dev/arrbrants/customsplash"
 MIXIN_DIR = PACKAGE_DIR + "/mixin"
 RESOURCES_DIR = "src/main/resources"
@@ -1373,35 +1375,47 @@ def read_supported_versions() -> list:
             if line.strip() and not line.startswith("#")]
 
 
-def read_fabric_targets() -> list:
-    """Fabric targets as (project, compile version, java version, covered versions)."""
+def read_targets(path: Path) -> list:
+    """Build targets as (project, compile version, covered versions).
+
+    Every loader shares the format:
+        <project> <compile-against> <covered minecraft versions...>
+    """
     targets = []
-    for line in TARGETS_FILE.read_text().splitlines():
+    for line in path.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         parts = line.split()
-        if len(parts) < 4:
-            raise SystemExit(f"malformed Fabric target: {line}")
-        targets.append((parts[0], parts[1], parts[2], parts[3:]))
+        if len(parts) < 3:
+            raise SystemExit(f"malformed target in {path.name}: {line}")
+        targets.append((parts[0], parts[1], parts[2:]))
     return targets
 
 
 def fabric_project_for(minecraft: str) -> str:
     """The Fabric project covering a release, so the other loaders can borrow it."""
-    for project, _compile, _java, covered in read_fabric_targets():
+    for project, _compile, covered in read_targets(FABRIC_TARGETS_FILE):
         if minecraft in covered:
             return project
     raise SystemExit(f"no Fabric target covers Minecraft {minecraft}")
 
 
+def check_range(covered: list, upper: str, path: Path) -> None:
+    """Fail when a declared metadata range does not cover exactly its line."""
+    key = lambda version: tuple(int(part) for part in version.split("."))
+    for version in covered:
+        if not key(covered[0]) <= key(version) < key(upper):
+            raise SystemExit(
+                f"{path.name}: {version} falls outside [{covered[0]},{upper})")
+
+
 def main() -> None:
-    targets = read_fabric_targets()
-    covered = [version for _project, _compile, _java, versions in targets
-               for version in versions]
+    targets = read_targets(FABRIC_TARGETS_FILE)
+    covered = [version for _project, _compile, versions in targets for version in versions]
     if covered != read_supported_versions():
         raise SystemExit("fabric-targets.txt must cover supported-versions.txt exactly, in order")
-    for project_name, compile_version, _java, _versions in targets:
+    for project_name, compile_version, _versions in targets:
         project = ROOT / "versions" / project_name
         package_dir = project / PACKAGE_DIR
         if not (project / "build.gradle").is_file():

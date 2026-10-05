@@ -21,6 +21,7 @@ finalize the jar with reobfJar, exactly like the MDK's mixin workflow.
 Run from the repository root: python3 scripts/generate_forge_projects.py
 """
 
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -28,8 +29,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from generate_common_sources import (SOURCES, fabric_project_for, mixin_for,  # noqa: E402
-                                    read_supported_versions, write_icon)
+from generate_common_sources import (FORGE_TARGETS_FILE, SOURCES,  # noqa: E402
+                                    check_range, fabric_project_for, mixin_for,
+                                    read_supported_versions, read_targets, write_icon)
 
 PACKAGE_DIR = Path("src/main/java/dev/arrbrants/customsplash")
 RESOURCES_DIR = Path("src/main/resources")
@@ -504,23 +506,45 @@ public class CustomSplash {
 """
 
 
-def main() -> None:
-	versions = FORGE_VERSIONS_FILE.read_text().splitlines()
-	fabric_versions = read_supported_versions()
-	for minecraft in versions:
-		if minecraft not in FORGE_SPECS:
-			raise SystemExit(f"no Forge spec for {minecraft}")
-		if minecraft not in fabric_versions:
-			raise SystemExit(f"{minecraft} is not a Fabric version project")
+def forge_group_ranges(covered: list) -> tuple:
+	"""The loader and Minecraft ranges that cover a whole Forge line.
 
-		forge_version, java_version, loader_range, mc_range = FORGE_SPECS[minecraft]
-		project = ROOT / "versions" / f"{minecraft}-forge"
-		if is_fg7(minecraft):
+	Every spec's Minecraft range ends where the next line starts, so the last
+	covered release supplies the exclusive upper bound. The oldest release
+	supplies the loader range, which then spans every Forge version in the line.
+	"""
+	loader_range = FORGE_SPECS[covered[0]][2]
+	match = re.fullmatch(r"\[[^,]+,([^)]+)\)", FORGE_SPECS[covered[-1]][3])
+	if not match:
+		raise SystemExit(f"unexpected Minecraft range: {FORGE_SPECS[covered[-1]][3]}")
+	return loader_range, f"[{covered[0]},{match.group(1)})"
+
+
+def main() -> None:
+	fabric_versions = read_supported_versions()
+	targets = read_targets(FORGE_TARGETS_FILE)
+	listed = [version for _target, _compile, covered in targets for version in covered]
+	if listed != FORGE_VERSIONS_FILE.read_text().split():
+		raise SystemExit("forge-targets.txt must cover supported-forge-versions.txt exactly, in order")
+	for target, compile_version, covered in targets:
+		if not target.endswith("-forge"):
+			raise SystemExit(f"a Forge target must be named <mc>-forge, got {target}")
+		for minecraft in covered:
+			if minecraft not in FORGE_SPECS:
+				raise SystemExit(f"no Forge spec for {minecraft}")
+			if minecraft not in fabric_versions:
+				raise SystemExit(f"{minecraft} is not a Fabric version project")
+
+		forge_version, java_version = FORGE_SPECS[compile_version][:2]
+		loader_range, mc_range = forge_group_ranges(covered)
+		check_range(covered, mc_range.rsplit(",", 1)[1][:-1], FORGE_TARGETS_FILE)
+		project = ROOT / "versions" / target
+		if is_fg7(compile_version):
 			build_gradle = BUILD_GRADLE_FG7
 			settings_gradle = SETTINGS_GRADLE_FG7
 			properties = GRADLE_PROPERTIES_FG7
 			mixins_json = MIXINS_JSON_NOREFMAP
-		elif is_fg6(minecraft):
+		elif is_fg6(compile_version):
 			build_gradle = BUILD_GRADLE_FG6
 			settings_gradle = SETTINGS_GRADLE_FG6
 			properties = GRADLE_PROPERTIES
@@ -532,28 +556,29 @@ def main() -> None:
 			mixins_json = MIXINS_JSON
 		write(project, Path("build.gradle"), build_gradle)
 		write(project, Path("settings.gradle"),
-		      settings_gradle.replace("%%MINECRAFT%%", minecraft))
+		      settings_gradle.replace("%%MINECRAFT%%", compile_version))
 		write(project, Path("gradle.properties"),
 		      properties
-		      .replace("%%MINECRAFT%%", minecraft)
+		      .replace("%%MINECRAFT%%", compile_version)
 		      .replace("%%FORGE%%", forge_version)
 		      .replace("%%JAVA%%", java_version))
-		copy_wrapper(project, minecraft)
+		copy_wrapper(project, compile_version)
 
 		for name, content in SOURCES.items():
 			write(project, PACKAGE_DIR / name, content)
 		write(project, PACKAGE_DIR / "ForgeSplashPlatform.java", FORGE_PLATFORM)
 		write(project, PACKAGE_DIR / "CustomSplash.java", FORGE_INITIALIZER)
-		write(project, PACKAGE_DIR / "mixin" / "SplashManagerMixin.java", forge_mixin_for(minecraft))
+		write(project, PACKAGE_DIR / "mixin" / "SplashManagerMixin.java",
+		      forge_mixin_for(compile_version))
 
 		write(project, RESOURCES_DIR / "META-INF" / "mods.toml",
 		      MODS_TOML
 		      .replace("%%LOADER_RANGE%%", loader_range)
 		      .replace("%%MC_RANGE%%", mc_range))
 		write(project, RESOURCES_DIR / "customsplash.mixins.json",
-		      mixins_json.replace("%%COMPAT%%", mixin_compatibility(minecraft)))
+		      mixins_json.replace("%%COMPAT%%", mixin_compatibility(compile_version)))
 		write_icon(project)
-		print(f"updated forge {minecraft}")
+		print(f"updated forge {target}")
 
 
 if __name__ == "__main__":

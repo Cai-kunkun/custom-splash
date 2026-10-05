@@ -5,46 +5,52 @@ plugins {
 	id 'base'
 }
 
-// Fabric is built once per API era: fabric-targets.txt maps each project to the
-// whole range of releases its single jar covers, so a Fabric target carries the
-// extra "covered" list. Forge and NeoForge still build one jar per release, from
-// supported-forge-versions.txt and supported-neoforge-versions.txt.
-def supportedVersions = file('supported-versions.txt').readLines()
-	.collect { it.trim() }.findAll { it && !it.startsWith('#') }
-def fabricTargets = file('fabric-targets.txt').readLines()
-	.collect { it.trim() }
-	.findAll { it && !it.startsWith('#') }
-	.collect { line ->
-		def parts = line.split(/\s+/)
-		if (parts.length < 4) {
-			throw new GradleException("Malformed Fabric target line: ${line}")
+// Every loader is built once per release line. Its targets file maps each project
+// to the whole range of releases its single jar covers, using the same format:
+//   <project> <compile-against> <covered minecraft versions...>
+def readList = { String fileName ->
+	file(fileName).readLines().collect { it.trim() }.findAll { it && !it.startsWith('#') }
+}
+def supportedVersions = readList('supported-versions.txt')
+def supportedForge = readList('supported-forge-versions.txt')
+def supportedNeoForge = readList('supported-neoforge-versions.txt')
+
+def readTargets = { String fileName, String loader, List expected ->
+	def targets = file(fileName).readLines()
+		.collect { it.trim() }
+		.findAll { it && !it.startsWith('#') }
+		.collect { line ->
+			def parts = line.split(/\s+/)
+			if (parts.length < 3) {
+				throw new GradleException("Malformed target line in ${fileName}: ${line}")
+			}
+			[name: parts[0], compile: parts[1], covered: parts[2..-1]]
 		}
-		[name: parts[0], compile: parts[1], covered: parts[3..-1]]
+	def listed = targets.collectMany { it.covered }
+	if (listed != expected) {
+		throw new GradleException("${fileName} must list every supported ${loader} release exactly once, in order")
 	}
-def fabricVersions = fabricTargets.collectMany { it.covered }
-def fabricSet = fabricVersions.toSet()
-if (fabricVersions != supportedVersions) {
-	throw new GradleException('fabric-targets.txt and supported-versions.txt must list the same releases, in the same order')
+	targets.collect { [name: it.name, loader: loader, minecraft: it.compile, covered: it.covered] }
 }
-def forgeVersions = file('supported-forge-versions.txt').readLines()
-	.collect { it.trim() }.findAll { it && !it.startsWith('#') }
-def neoforgeVersions = file('supported-neoforge-versions.txt').readLines()
-	.collect { it.trim() }.findAll { it && !it.startsWith('#') }
-def allTargets = []
-fabricTargets.each { target ->
-	allTargets << [name: target.name, loader: 'fabric', minecraft: target.compile, covered: target.covered]
-}
-[forge: forgeVersions, neoforge: neoforgeVersions].each { loader, versions ->
-	versions.each { mc ->
+
+def allTargets = readTargets('fabric-targets.txt', 'fabric', supportedVersions) +
+	readTargets('forge-targets.txt', 'forge', supportedForge) +
+	readTargets('neoforge-targets.txt', 'neoforge', supportedNeoForge)
+def fabricSet = supportedVersions.toSet()
+allTargets.findAll { it.loader != 'fabric' }.each { target ->
+	target.covered.each { mc ->
 		if (!fabricSet.contains(mc)) {
-			throw new GradleException("Minecraft ${mc} is not a Fabric version project")
+			throw new GradleException("Minecraft ${mc} is not a Fabric release")
 		}
-		allTargets << [name: "${mc}-${loader}", loader: loader, minecraft: mc, covered: [mc]]
 	}
 }
 
-// What a Fabric jar declares in fabric.mod.json, e.g. ">=1.20 <=1.21.11".
+// What a Fabric jar declares in fabric.mod.json, e.g. ">=1.20 <=1.21.11". Forge
+// and NeoForge declare a Maven range in their metadata instead, so those only
+// have their lower bound checked here; verify_release_artifacts.py checks the
+// whole set once the release is assembled.
 def fabricPredicate = { target -> ">=${target.covered.first()} <=${target.covered.last()}" }
+def mcLowerBound = { target -> "versionRange=\"[${target.covered.first()}," }
 
 def projectDirs = file('versions').listFiles()
 	.findAll { it.isDirectory() && new File(it, 'build.gradle').isFile() }
@@ -146,13 +152,16 @@ tasks.register('collectJars', Sync) {
 	}
 }
 
-def checkModMetadata = { File jar, String metadataPath, String expectedVersion ->
+def checkModMetadata = { File jar, String metadataPath, String expectedVersion, String mcMarker ->
 	new ZipFile(jar).withCloseable { zip ->
 		def entry = zip.getEntry(metadataPath)
 		if (entry == null) throw new GradleException("Missing ${metadataPath} in ${jar.name}")
 		def text = zip.getInputStream(entry).getText('UTF-8')
 		if (!text.contains('modId="custom-splash"')) {
 			throw new GradleException("Invalid ${metadataPath} in ${jar.name}")
+		}
+		if (!text.contains(mcMarker)) {
+			throw new GradleException("Minecraft range in ${jar.name} does not start at ${mcMarker}")
 		}
 		def actual = text.readLines().find { it.startsWith('version="') }?.replaceFirst(/^version="(.*)"$/, '$1')
 		if (actual != expectedVersion) {
@@ -204,9 +213,11 @@ tasks.register('verifyReleases') {
 						throw new GradleException("Invalid metadata in ${matches[0].name}")
 					}
 				} else if (target.loader == 'neoforge') {
-					checkModMetadata(matches[0], 'META-INF/neoforge.mods.toml', "${ver}${gitCommit ? ".${gitCommit}" : ''}")
+					checkModMetadata(matches[0], 'META-INF/neoforge.mods.toml',
+						"${ver}${gitCommit ? ".${gitCommit}" : ''}", mcLowerBound(target))
 				} else {
-					checkModMetadata(matches[0], 'META-INF/mods.toml', "${ver}${gitCommit ? ".${gitCommit}" : ''}")
+					checkModMetadata(matches[0], 'META-INF/mods.toml',
+						"${ver}${gitCommit ? ".${gitCommit}" : ''}", mcLowerBound(target))
 				}
 			}
 		}

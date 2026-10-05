@@ -22,6 +22,6 @@ side="BOTH"
 [[dependencies.custom-splash]]
 modId="minecraft"
 type="required"
-versionRange="[26.1]"
+versionRange="[26.1,26.4)"
 ordering="NONE"
 side="BOTH"
