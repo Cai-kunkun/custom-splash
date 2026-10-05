@@ -6,6 +6,10 @@ Every build target produces exactly one jar. Fabric jars carry a
 ``META-INF/mods.toml`` and NeoForge jars carry
 ``META-INF/neoforge.mods.toml``; the loader is inferred from which of the
 three is present, so the families can share this validation pass.
+
+Fabric targets are defined by fabric-targets.txt, where one jar covers a range
+of Minecraft releases, so its ``minecraft`` dependency is checked against the
+range rather than a single version.
 """
 
 import re
@@ -42,12 +46,23 @@ def read_properties(root: Path, project: str) -> dict[str, str]:
     )
 
 
+def read_fabric_targets(root: Path) -> dict[str, list[str]]:
+    """Fabric project -> the Minecraft releases its single jar covers."""
+    targets: dict[str, list[str]] = {}
+    for line in (root / "fabric-targets.txt").read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 4:
+            raise SystemExit(f"Malformed Fabric target line: {line}")
+        targets[parts[0]] = parts[3:]
+    return targets
+
+
 def load_targets(root: Path) -> list[tuple[str, str]]:
     """Return (project, loader) pairs for every release target."""
-    fabric = [
-        (version, "fabric")
-        for version in (root / "supported-versions.txt").read_text().splitlines()
-    ]
+    fabric = [(project, "fabric") for project in read_fabric_targets(root)]
     forge = [
         (f"{version}-forge", "forge")
         for version in (root / "supported-forge-versions.txt").read_text().splitlines()
@@ -70,10 +85,14 @@ def target_prefix(root: Path, project: str, loader: str) -> str:
     return f"custom-splash-{minecraft}-{mod_version}+mc{minecraft}."
 
 
-def check_fabric_metadata(jar_name: str, metadata: dict, minecraft: str, expected_version: str) -> list[str]:
+def check_fabric_metadata(jar_name: str, metadata: dict, covered: list[str], expected_version: str) -> list[str]:
     errors = []
-    if metadata["depends"]["minecraft"] != f"={minecraft}":
-        errors.append(f"{jar_name}: incorrect Minecraft dependency")
+    expected = f">={covered[0]} <={covered[-1]}"
+    if metadata["depends"]["minecraft"] != expected:
+        errors.append(
+            f"{jar_name}: Minecraft dependency {metadata['depends']['minecraft']!r} "
+            f"does not match {expected!r}"
+        )
     if metadata["version"] != expected_version:
         errors.append(
             f"{jar_name}: metadata version {metadata['version']!r} does not match {expected_version!r}"
@@ -99,6 +118,7 @@ def main() -> None:
     release_dir = Path(sys.argv[1])
     root = Path(__file__).resolve().parents[1]
     targets = load_targets(root)
+    fabric_targets = read_fabric_targets(root)
     jars = list(release_dir.glob("*.jar"))
     if len(jars) != len(targets):
         raise SystemExit(f"Expected {len(targets)} jars, found {len(jars)}")
@@ -133,7 +153,7 @@ def main() -> None:
 
                 metadata = json.loads(archive.read("fabric.mod.json"))
                 errors = check_fabric_metadata(
-                    jar.name, metadata, props["minecraft_version"], expected_version
+                    jar.name, metadata, fabric_targets[project], expected_version
                 )
             elif loader == "neoforge":
                 text = archive.read("META-INF/neoforge.mods.toml").decode("utf-8")

@@ -9,11 +9,16 @@ does nothing there.
 
 ## Supported versions
 
-Each supported Minecraft version is an independent Gradle project under `versions/`.
 The [Fabric version list](supported-versions.txt) covers every stable release from
 **1.14 through 26.3** (48 versions, including all patch releases in between).
-Snapshots and pre-releases are not included. Adding a version requires both its
-directory and an entry in this list.
+Snapshots and pre-releases are not included. Fabric is not built once per release
+though: [fabric-targets.txt](fabric-targets.txt) maps each project to the whole
+range its single jar covers, so those 48 releases ship as **6 jars**. Adding a
+release means adding it to `supported-versions.txt` and to the matching line of
+`fabric-targets.txt`; a new API era needs its own project directory as well.
+Membership is a runtime claim, not just a build one — the mixin target and the
+intermediary names it resolves to must be identical across a line. A green build
+only proves it compiles, so smoke test a jar before releasing it.
 
 The [Forge version list](supported-forge-versions.txt) covers every Minecraft
 release with a Forge build from **1.16.1 through 1.20.6** (20 versions). Forge
@@ -42,10 +47,11 @@ Only Fabric Loader is required; Fabric API is not used by this mod. The Forge
 and NeoForge ports require no external dependencies either (only the loader
 itself plus Mixin, which the build resolves).
 
-Build one version from its directory:
+Build one Fabric target from its directory. Its jar covers every release on that
+target's `fabric-targets.txt` line:
 
 ```sh
-cd versions/1.20.1
+cd versions/1.20          # one jar for 1.20 through 1.21.11
 ./gradlew build
 ```
 
@@ -77,7 +83,7 @@ Build every version, check each JAR, and collect them in `build/releases`:
 
 For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCount=9`
 builds one of nine non-overlapping groups. CI merges the groups and checks that
-all 86 targets were built before publishing. On CI, `FORGE_JAVA_HOME` points at
+all 44 targets were built before publishing. On CI, `FORGE_JAVA_HOME` points at
 a JDK 17 that the aggregator forwards to the ForgeGradle 5/6 child builds while
 the rest of the build runs on Java 21, and additionally installed JDK 8/16/25
 plus the runner's JDK 21 satisfy the per-version toolchains.
@@ -275,9 +281,10 @@ after the release jars are verified, and CI runs them in every job.
 
 ## Repository layout
 
-- `versions/<mc>` — one standalone Fabric project per Minecraft version
+- `versions/<era>` — one standalone Fabric project per API era; its single jar covers every release on its `fabric-targets.txt` line
 - `versions/<mc>-forge` — one standalone Forge project per Forge version
 - `versions/<mc>-neoforge` — one standalone NeoForge project per NeoForge version
+- `fabric-targets.txt` — the Fabric target list: project, compile version and covered releases
 - `scripts/generate_common_sources.py` — writes the shared (loader-agnostic) Java sources
 - `scripts/generate_forge_projects.py` — scaffolds the Forge projects
 - `scripts/generate_neoforge_projects.py` — scaffolds the NeoForge projects

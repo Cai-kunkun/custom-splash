@@ -28,7 +28,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from generate_common_sources import SOURCES, mixin_for, write_icon  # noqa: E402
+from generate_common_sources import (SOURCES, fabric_project_for, mixin_for,  # noqa: E402
+                                    read_supported_versions, write_icon)
 
 PACKAGE_DIR = Path("src/main/java/dev/arrbrants/customsplash")
 RESOURCES_DIR = Path("src/main/resources")
@@ -120,8 +121,8 @@ def write(project: Path, relative: Path, content: str) -> None:
 
 
 def copy_wrapper(project: Path, minecraft: str) -> None:
-    """Reuse the wrapper scripts and jar from the matching Fabric project."""
-    source = ROOT / "versions" / minecraft
+    """Reuse the wrapper scripts and jar from the Fabric project covering it."""
+    source = ROOT / "versions" / fabric_project_for(minecraft)
     (project / "gradle" / "wrapper").mkdir(parents=True, exist_ok=True)
     for name in ("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar"):
         shutil.copyfile(source / name, project / name)
@@ -505,7 +506,7 @@ public class CustomSplash {
 
 def main() -> None:
 	versions = FORGE_VERSIONS_FILE.read_text().splitlines()
-	fabric_versions = (ROOT / "supported-versions.txt").read_text().splitlines()
+	fabric_versions = read_supported_versions()
 	for minecraft in versions:
 		if minecraft not in FORGE_SPECS:
 			raise SystemExit(f"no Forge spec for {minecraft}")

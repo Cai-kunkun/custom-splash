@@ -123,16 +123,17 @@ jobs:
             if unzip -l "$file" | grep -q "META-INF/neoforge.mods.toml"; then
               loader="neoforge"
               version=$(unzip -p "$file" META-INF/neoforge.mods.toml | sed -nE 's/^version="(.*)"$/\1/p' | head -1)
-              mc_version=$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-neoforge-.*/\1/')
+              mc_versions=$(python3 -c 'import json,sys;print(json.dumps([sys.argv[1]]))' "$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-neoforge-.*/\1/')")
             elif unzip -l "$file" | grep -q "META-INF/mods.toml"; then
               loader="forge"
               version=$(unzip -p "$file" META-INF/mods.toml | sed -nE 's/^version="(.*)"$/\1/p' | head -1)
-              mc_version=$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-forge-.*/\1/')
+              mc_versions=$(python3 -c 'import json,sys;print(json.dumps([sys.argv[1]]))' "$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-forge-.*/\1/')")
             else
               loader="fabric"
               meta=$(unzip -p "$file" fabric.mod.json)
               version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['version'])")
-              mc_version=$(printf '%s' "$meta" | python3 -c "import json,sys;print(json.load(sys.stdin)['depends']['minecraft'].lstrip('='))")
+              # A Fabric jar covers a whole range, so publish every release it declares.
+              mc_versions=$(python3 -c "import json,sys;targets={l.split()[0]:l.split()[3:] for l in open('fabric-targets.txt') if l.strip() and not l.startswith('#')};print(json.dumps(targets[sys.argv[1]]))" "$(basename "$file" | sed -E 's/^custom-splash-([0-9.]+)-.*/\1/')")
             fi
             if [ "${#version}" -gt 32 ] && printf '%s' "$version" | grep -qE '\.[0-9a-f]{8}$'; then
               # Modrinth caps version_number at 32 characters; drop the commit suffix
@@ -147,13 +148,13 @@ jobs:
               echo "skipping existing Modrinth version $version"
               continue
             fi
-            echo "publishing $file for Minecraft $mc_version ($loader) as $version"
+            echo "publishing $file for Minecraft $mc_versions ($loader) as $version"
             published=false
             limit_reached=false
             for attempt in 1 2 3; do
               if curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
                 -H "Authorization: $MODRINTH_TOKEN" \
-                -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":[\"$mc_version\"],\"loaders\":[\"$loader\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
+                -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":$mc_versions,\"loaders\":[\"$loader\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
                 -F "file=@$file;type=application/java-archive" -o "$RUNNER_TEMP/modrinth-response.json"
               then
                 published=true

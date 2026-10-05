@@ -1,0 +1,34 @@
+# Fabric build targets.
+#
+# The mod compiles once per line below and declares the whole range in
+# fabric.mod.json, so a single jar covers every Minecraft version in it. This
+# cuts the Fabric side from one project per release to one per API era.
+#
+#   <project> <compile-against> <covered minecraft versions...>
+#
+# The project directory is versions/<project> and <compile-against> is the
+# oldest covered release, so the build files stay the ones that era needs. The
+# fabric.mod.json predicate is derived as ">=<first> <=<last>".
+#
+# Membership is not cosmetic: every version in a line must share the mixin
+# target. Verified against the intermediary mappings shipped by Fabric:
+# SplashManager is net/minecraft/class_4008 and getSplash is method_18174 from
+# 1.14.4 through 1.21.11, and SplashRenderer is net/minecraft/class_8519 from
+# 1.20 through 1.21.11. The one thing that does change inside 1.20-1.21.11 is
+# the SplashRenderer constructor (String becomes Component), and the reflective
+# lookup in the modern mixin already covers both. Smoke test a jar before
+# releasing it; a green build only proves it compiles.
+
+# Yarn mappings, SplashTextResourceSupplier#get (its own era, no intermediary evidence).
+1.14	1.14	8	1.14 1.14.1 1.14.2 1.14.3
+
+# Plain String splash: SplashManager#getSplash. Java 8 class files run everywhere in this line.
+1.14.4	1.14.4	8	1.14.4 1.15 1.15.1 1.15.2 1.16 1.16.1 1.16.2 1.16.3 1.16.4 1.16.5 1.17 1.17.1 1.18 1.18.1 1.18.2 1.19 1.19.1 1.19.2 1.19.3 1.19.4
+
+# SplashRenderer. Java 17 class files run on the Java 21 releases inside the line too.
+1.20	1.20	17	1.20 1.20.1 1.20.2 1.20.3 1.20.4 1.20.5 1.20.6 1.21 1.21.1 1.21.2 1.21.3 1.21.4 1.21.5 1.21.6 1.21.7 1.21.8 1.21.9 1.21.10 1.21.11
+
+# 26.x ships with official names and no intermediary, so each line stays its own jar.
+26.1	26.1	25	26.1 26.1.1 26.1.2
+26.2	26.2	25	26.2
+26.3	26.3	25	26.3

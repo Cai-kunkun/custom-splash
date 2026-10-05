@@ -18,6 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSIONS_FILE = ROOT / "supported-versions.txt"
+TARGETS_FILE = ROOT / "fabric-targets.txt"
 PACKAGE_DIR = "src/main/java/dev/arrbrants/customsplash"
 MIXIN_DIR = PACKAGE_DIR + "/mixin"
 RESOURCES_DIR = "src/main/resources"
@@ -1366,20 +1367,52 @@ def mixin_for(version: str) -> str:
     return MIXIN_OLD if uses_legacy_mixin(version) else MIXIN_NEW
 
 
+def read_supported_versions() -> list:
+    """Every supported release, from supported-versions.txt."""
+    return [line.strip() for line in VERSIONS_FILE.read_text().splitlines()
+            if line.strip() and not line.startswith("#")]
+
+
+def read_fabric_targets() -> list:
+    """Fabric targets as (project, compile version, java version, covered versions)."""
+    targets = []
+    for line in TARGETS_FILE.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 4:
+            raise SystemExit(f"malformed Fabric target: {line}")
+        targets.append((parts[0], parts[1], parts[2], parts[3:]))
+    return targets
+
+
+def fabric_project_for(minecraft: str) -> str:
+    """The Fabric project covering a release, so the other loaders can borrow it."""
+    for project, _compile, _java, covered in read_fabric_targets():
+        if minecraft in covered:
+            return project
+    raise SystemExit(f"no Fabric target covers Minecraft {minecraft}")
+
+
 def main() -> None:
-    versions = VERSIONS_FILE.read_text().splitlines()
-    for version in versions:
-        project = ROOT / "versions" / version
+    targets = read_fabric_targets()
+    covered = [version for _project, _compile, _java, versions in targets
+               for version in versions]
+    if covered != read_supported_versions():
+        raise SystemExit("fabric-targets.txt must cover supported-versions.txt exactly, in order")
+    for project_name, compile_version, _java, _versions in targets:
+        project = ROOT / "versions" / project_name
         package_dir = project / PACKAGE_DIR
         if not (project / "build.gradle").is_file():
             raise SystemExit(f"missing version project: {project}")
         for name, content in SOURCES.items():
             (package_dir / name).write_text(content)
-        (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(mixin_for(version))
+        (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(mixin_for(compile_version))
         write_fabric_platform(project)
         patch_initializer(project)
         write_icon(project)
-        print(f"updated {version}")
+        print(f"updated {project_name}")
 
 
 def patch_initializer(project: Path) -> None:
