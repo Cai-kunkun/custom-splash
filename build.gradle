@@ -72,8 +72,8 @@ if (shard != null) {
 	if (count < 1 || index < 0 || index >= count || count > allTargets.size()) {
 		throw new GradleException('Invalid build shard: buildShard must be in [0, buildShardCount)')
 	}
-	def size = (allTargets.size() + count - 1).intdiv(count)
-	targets = allTargets.drop(index * size).take(size)
+	// Round-robin, so a shard is never left empty while another carries two.
+	targets = (index..<allTargets.size()).step(count).collect { allTargets[it] }
 }
 def gitCommit = providers.exec {
 	commandLine 'git', 'rev-parse', '--short=8', 'HEAD'

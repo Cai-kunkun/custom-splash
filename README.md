@@ -103,14 +103,17 @@ Every project therefore uses one of exactly three Gradle releases, one per Gradl
 major line, and each is pinned by the oldest build plugin on that line rather
 than by drift:
 
-| Gradle | Used by | Pinned by |
+| Gradle | Projects | Pinned by |
 | --- | --- | --- |
-| 7.6.4 | Forge 1.16.1–1.19.4 | ForgeGradle 5, which does not support Gradle 8 |
-| 8.13 | Forge 1.20–1.20.4, Fabric 1.14–1.20 | ForgeGradle 6 and Fabric Loom 1.6 |
-| 9.6.0 | Forge 1.20.6, NeoForge, Fabric 26.x | ForgeGradle 7, ModDevGradle and Loom 1.17 |
+| 7.6.4 | Forge 1.16.1–1.19.4 (4) | ForgeGradle 5, which does not support Gradle 8 |
+| 8.8 | Fabric 1.14–1.20 (3) | Fabric Loom 1.6, which fails on 8.13 |
+| 8.13 | Forge 1.20–1.20.4 (1) | ForgeGradle 6 |
+| 9.6.0 | Forge 1.20.6, NeoForge, Fabric 26.x (8) | ForgeGradle 7, ModDevGradle and Loom 1.17 |
 
-The Fabric 26.x line needs a newer Loom than the older Fabric releases, so those
-two cannot share a Gradle release without migrating Loom itself.
+Four releases remain and each is pinned by a build plugin rather than left to
+drift. The remaining differences cannot be collapsed without migrating a plugin:
+ForgeGradle 5 does not run on Gradle 8, Loom 1.6 fails on 8.13, and the Fabric
+26.x line needs a newer Loom than the older Fabric releases.
 
 Build every version, check each JAR, and collect them in `build/releases`:
 
