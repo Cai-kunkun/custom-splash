@@ -388,6 +388,8 @@ release, and a row uses the nearest release that does have an asset.
 - `scripts/check_forge_lines.py` — resolves the SRG name each Forge line's mixin looks for, from the mappings
 - `scripts/check_target_coverage.py` — checks the declared metadata: the mod id against the strictest loader rule, every line's range, and that each smoke row boots a release its jar claims
 - `scripts/verify_release_artifacts.py` — validates a complete release set
+- `scripts/modrinth_payload.py` — builds the Modrinth version payload, including the changelog
+- `CHANGELOG.md` — one `## <version>` section per release; the section is published as that Modrinth version's changelog
 - `tests/` — JUnit 5 unit tests for the shared sources
 - `supported-versions.txt` — the Fabric version list
 - `supported-forge-versions.txt` — the Forge version list

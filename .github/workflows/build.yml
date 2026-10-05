@@ -271,12 +271,16 @@ jobs:
               continue
             fi
             echo "publishing $file for Minecraft $mc_versions ($loader) as $version"
+            # The changelog is Markdown, so build the payload as a file rather than
+            # escaping it into the shell string below.
+            python3 scripts/modrinth_payload.py "$RUNNER_TEMP/modrinth-payload.json" \
+              "$MODRINTH_ID" "$version" "$loader" "$mc_versions"
             published=false
             limit_reached=false
             for attempt in 1 2 3; do
               if curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
                 -H "Authorization: $MODRINTH_TOKEN" \
-                -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"release\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":$mc_versions,\"loaders\":[\"$loader\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
+                -F "data=@$RUNNER_TEMP/modrinth-payload.json;type=application/json" \
                 -F "file=@$file;type=application/java-archive" -o "$RUNNER_TEMP/modrinth-response.json"
               then
                 published=true
