@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Check that every target's declared metadata covers its own release line.
+"""Check the metadata every target declares: its mod id and its release line.
 
-Each target builds one jar and declares the Minecraft range it supports, so two
-things have to hold at once:
+Each target builds one jar and declares the mod id and the Minecraft range it
+supports, so three things have to hold at once:
 
+* the mod id satisfies the strictest loader rule. NeoForge requires
+  ``^(?=.{2,64}$)[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$`` and Forge from 1.17 turns
+  the id into a Java module name, so an id with a hyphen makes the jar fail to
+  load on both -- which is how ``custom-splash`` shipped broken for years;
 * every release in ``supported-*-versions.txt`` is claimed by at least one jar,
   otherwise an upload supports nothing;
 * the range a jar declares matches the line its targets file gives it, otherwise
@@ -35,9 +39,24 @@ LOADERS = (
     ("neoforge", NEOFORGE_TARGETS_FILE, "supported-neoforge-versions.txt"),
 )
 
+# Taken from the message NeoForge prints when it rejects a mod file.
+MOD_ID_PATTERN = re.compile(r"^(?=.{2,64}$)[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$")
+
 
 def key(version: str) -> tuple:
     return tuple(int(part) for part in version.split("."))
+
+
+def declared_mod_id(loader: str, project: str):
+    """The mod id a project declares for itself."""
+    resources = ROOT / "versions" / project / "src" / "main" / "resources"
+    if loader == "fabric":
+        return json.loads((resources / "fabric.mod.json").read_text())["id"]
+    name = "neoforge.mods.toml" if loader == "neoforge" else "mods.toml"
+    text = (resources / "META-INF" / name).read_text()
+    block = text.split("[[mods]]")[1] if "[[mods]]" in text else text
+    match = re.search(r'modId="([^"]+)"', block)
+    return match.group(1) if match else None
 
 
 def declared(loader: str, project: str):
@@ -81,6 +100,11 @@ def main() -> None:
                 failures += 1
                 continue
             spans[project] = span
+            mod_id = declared_mod_id(loader, project)
+            if not mod_id or not MOD_ID_PATTERN.match(mod_id):
+                print(f"{loader}/{project}: mod id {mod_id!r} would be rejected by the strictest "
+                      f"loader; NeoForge requires {MOD_ID_PATTERN.pattern}")
+                failures += 1
             # A jar has to claim every release its own line says it covers.
             missing = [release for release in covered if not covers(span, release)]
             if missing:
@@ -112,9 +136,9 @@ def main() -> None:
         for loader, project, extra in overclaims:
             print(f"  {loader}/{project} also declares {', '.join(extra)}")
     if failures:
-        raise SystemExit(f"\n{failures} coverage problem(s)")
-    print("\nEvery supported release is claimed by at least one jar, and every line is fully "
-          "declared by its own jar.")
+        raise SystemExit(f"\n{failures} metadata problem(s)")
+    print("\nEvery mod id passes the strictest loader rule, every supported release is claimed "
+          "by at least one jar, and every line is fully declared by its own jar.")
 
 
 if __name__ == "__main__":
