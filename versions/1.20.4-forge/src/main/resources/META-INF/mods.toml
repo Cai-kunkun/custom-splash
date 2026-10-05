@@ -7,6 +7,7 @@ modId="custom-splash"
 version="${version}"
 displayName="Custom Splash"
 authors="ArrBrants"
+logoFile="assets/custom-splash/icon.png"
 description='''A mod that replaces or extends the title screen yellow splash text with custom texts, colours, gradients, placeholders and conditions.'''
 
 [[dependencies.custom-splash]]

@@ -6,10 +6,11 @@ conditions, colour support and an extended public API.
 
 The shared sources contain no Minecraft compile-time references (player lookup is
 reflective) and touch the loader only through SplashPlatform, so the exact same
-files work on every Fabric and Forge version. Only the
-mixin differs between versions: pre-1.16 uses the SplashManager API
-(SplashTextResourceSupplier#get under Yarn, SplashManager#getSplash under Mojang
-mappings), 1.20+ uses SplashRenderer.
+files work on every Fabric, Forge and NeoForge version. Only the mixin differs
+between versions: up to 1.19 the splash is a plain String, read from
+SplashTextResourceSupplier#get under Yarn (1.14-1.14.3) or
+SplashManager#getSplash under Mojang mappings (1.14.4-1.19.4); 1.20+ uses
+SplashRenderer.
 """
 
 from pathlib import Path
@@ -18,6 +19,12 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSIONS_FILE = ROOT / "supported-versions.txt"
 PACKAGE_DIR = "src/main/java/dev/arrbrants/customsplash"
 MIXIN_DIR = PACKAGE_DIR + "/mixin"
+RESOURCES_DIR = "src/main/resources"
+# Loaders look the mod icon up under the mod id, so the resource path must use
+# "custom-splash". This repository-level source image is copied into every
+# version project by write_icon().
+ICON_RESOURCE = "assets/custom-splash/icon.png"
+ICON_SOURCE = ROOT / RESOURCES_DIR / ICON_RESOURCE
 
 SOURCES = {}
 
@@ -1183,6 +1190,7 @@ def main() -> None:
         (project / MIXIN_DIR / "SplashManagerMixin.java").write_text(mixin_for(version))
         write_fabric_platform(project)
         patch_initializer(project)
+        write_icon(project)
         print(f"updated {version}")
 
 
@@ -1264,6 +1272,23 @@ def write_fabric_platform(project: Path) -> None:
     path = project / PACKAGE_DIR / "FabricSplashPlatform.java"
     if not path.exists() or path.read_text() != FABRIC_PLATFORM:
         path.write_text(FABRIC_PLATFORM)
+
+
+def write_icon(project: Path) -> None:
+    """Ship the canonical mod icon as ``assets/custom-splash/icon.png``.
+
+    Loaders resolve the mod icon under the mod id, so the resource path must use
+    ``custom-splash``; the single source image lives in this repository's own
+    ``src/main/resources`` (which no Gradle build consumes) and is copied into
+    every version project here. Shared with the Forge and NeoForge generators.
+    """
+    if not ICON_SOURCE.is_file():
+        raise SystemExit(f"missing canonical mod icon: {ICON_SOURCE}")
+    icon = ICON_SOURCE.read_bytes()
+    target = project / RESOURCES_DIR / ICON_RESOURCE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.is_file() or target.read_bytes() != icon:
+        target.write_bytes(icon)
 
 
 

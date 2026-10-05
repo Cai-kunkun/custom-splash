@@ -28,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from generate_common_sources import SOURCES, mixin_for  # noqa: E402
+from generate_common_sources import SOURCES, mixin_for, write_icon  # noqa: E402
 
 PACKAGE_DIR = Path("src/main/java/dev/arrbrants/customsplash")
 RESOURCES_DIR = Path("src/main/resources")
@@ -395,6 +395,7 @@ modId="custom-splash"
 version="${version}"
 displayName="Custom Splash"
 authors="ArrBrants"
+logoFile="assets/custom-splash/icon.png"
 description='''A mod that replaces or extends the title screen yellow splash text with custom texts, colours, gradients, placeholders and conditions.'''
 
 [[dependencies.custom-splash]]
@@ -550,6 +551,7 @@ def main() -> None:
 		      .replace("%%MC_RANGE%%", mc_range))
 		write(project, RESOURCES_DIR / "customsplash.mixins.json",
 		      mixins_json.replace("%%COMPAT%%", mixin_compatibility(minecraft)))
+		write_icon(project)
 		print(f"updated forge {minecraft}")
 
 

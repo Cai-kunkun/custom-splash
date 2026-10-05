@@ -263,6 +263,7 @@ after the release jars are verified, and CI runs them in every job.
 - `scripts/generate_common_sources.py` — writes the shared (loader-agnostic) Java sources
 - `scripts/generate_forge_projects.py` — scaffolds the Forge projects
 - `scripts/generate_neoforge_projects.py` — scaffolds the NeoForge projects
+- `src/main/resources/assets/custom-splash/icon.png` — the canonical mod icon, copied into every version project by the generators
 - `scripts/update_yarn_mappings.py` — refreshes the Yarn v2 mappings
 - `scripts/verify_release_artifacts.py` — validates a complete release set
 - `tests/` — JUnit 5 unit tests for the shared sources
