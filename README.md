@@ -10,6 +10,18 @@ made the jar fail to load on both. The asset namespace, the config file
 `config/customsplash.json` and the resource-pack path
 `assets/customsplash/splashes.txt` all use the same name.
 
+### Upgrading from 1.x
+
+The id changed in 2.0.0, when the hyphen was dropped so the mod could load on
+NeoForge at all and on Forge 1.17 and newer. Two things have to move with it:
+
+- rename `config/custom-splash.json` to `config/customsplash.json`. The file
+  format is unchanged, so its contents need no edits.
+- if you ship a resource pack, move its `assets/custom-splash/splashes.txt` (or
+  `splashes.json`) to `assets/customsplash/`.
+
+Nothing else about the config format or the `SplashRegistry` API changed.
+
 The mod is client-side only. Fabric and NeoForge declare that, so a dedicated
 server disables it; the Forge port has no equivalent metadata field and simply
 does nothing there.

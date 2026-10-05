@@ -25,6 +25,20 @@ Forge downloads use the jars with `-forge-` in the filename, NeoForge downloads
 the `-neoforge-` jars and Fabric downloads use the plain
 `customsplash-<mc>-…` jars.
 
+## Upgrading from 1.x
+
+Version 2.0.0 drops the hyphen from the mod id: NeoForge rejects `custom-splash`
+and Forge 1.17 and newer derive an invalid Java module name from it, so before
+this release the mod could not load on NeoForge at all or on Forge 1.17–1.19.4.
+Two paths have to move with the id:
+
+- rename `config/custom-splash.json` to `config/customsplash.json` — the file
+  format is unchanged, so its contents need no edits;
+- if you ship a resource pack, move its `assets/custom-splash/splashes.txt` (or
+  `splashes.json`) to `assets/customsplash/`.
+
+Nothing else about the config format or the `SplashRegistry` API changed.
+
 ## Configuration
 
 ```json
