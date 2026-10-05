@@ -223,7 +223,7 @@ jobs:
           if gh release view "$tag" > /dev/null 2>&1; then
             gh release upload "$tag" build/releases/*.jar --clobber
           else
-            gh release create "$tag" build/releases/*.jar --title "Custom Splash $MOD_VERSION (build ${{ github.run_number }})" --prerelease --generate-notes
+            gh release create "$tag" build/releases/*.jar --title "Custom Splash $MOD_VERSION (build ${{ github.run_number }})" --generate-notes
           fi
       - name: publish to modrinth
         env:
@@ -254,7 +254,7 @@ jobs:
             fi
             # One jar covers a whole release line, so publish every release it
             # declares. The project name sits between the prefix and the mod
-            # version, e.g. customsplash-1.16.1-forge-1.2.0+forge-mc1.16.1.<sha>.
+            # version, e.g. customsplash-1.16.1-forge-2.0.0+forge-mc1.16.1.<sha>.
             project=$(basename "$file" | sed -E 's/^customsplash-(.+)-[0-9]+\.[0-9]+\.[0-9]+\+.*/\1/')
             mc_versions=$(python3 -c "import json,sys;t={l.split()[0]:l.split()[2:] for l in open(sys.argv[2]) if l.strip() and not l.startswith('#')};print(json.dumps(t[sys.argv[1]]))" "$project" "$targets_file")
             if [ "${#version}" -gt 32 ] && printf '%s' "$version" | grep -qE '\.[0-9a-f]{8}$'; then
@@ -276,7 +276,7 @@ jobs:
             for attempt in 1 2 3; do
               if curl --fail-with-body -sS -X POST "https://api.modrinth.com/v3/version" \
                 -H "Authorization: $MODRINTH_TOKEN" \
-                -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"alpha\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":$mc_versions,\"loaders\":[\"$loader\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
+                -F "data={\"project_id\":\"$MODRINTH_ID\",\"version_number\":\"$version\",\"version_title\":\"$version\",\"version_type\":\"release\",\"changelog\":\"\",\"dependencies\":[],\"game_versions\":$mc_versions,\"loaders\":[\"$loader\"],\"environment\":\"client_or_server\",\"featured\":false,\"file_parts\":[\"file\"],\"primary_file\":\"file\"};type=application/json" \
                 -F "file=@$file;type=application/java-archive" -o "$RUNNER_TEMP/modrinth-response.json"
               then
                 published=true

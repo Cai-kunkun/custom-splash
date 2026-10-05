@@ -199,7 +199,7 @@ rootProject.name = 'customsplash-%%MINECRAFT%%-neoforge'
 GRADLE_PROPERTIES = """minecraft_version=%%MINECRAFT%%
 neo_version=%%NEO%%
 java_version=%%JAVA%%
-mod_version=1.2.0
+mod_version=2.0.0
 maven_group=dev.arrbrants.customsplash
 org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64
 """

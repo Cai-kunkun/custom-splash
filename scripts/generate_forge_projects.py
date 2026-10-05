@@ -369,7 +369,7 @@ rootProject.name = 'customsplash-%%MINECRAFT%%-forge'
 GRADLE_PROPERTIES = """minecraft_version=%%MINECRAFT%%
 forge_version=%%FORGE%%
 java_version=%%JAVA%%
-mod_version=1.2.0
+mod_version=2.0.0
 maven_group=dev.arrbrants.customsplash
 org.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME_16_X64,JAVA_HOME_17_X64
 """
@@ -377,7 +377,7 @@ org.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME_16_X64,JAVA_HOME
 GRADLE_PROPERTIES_FG7 = """minecraft_version=%%MINECRAFT%%
 forge_version=%%FORGE%%
 java_version=%%JAVA%%
-mod_version=1.2.0
+mod_version=2.0.0
 maven_group=dev.arrbrants.customsplash
 org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64
 """

@@ -53,7 +53,7 @@ def main() -> None:
         headers={
             "Authorization": token,
             "Content-Type": "application/json",
-            "User-Agent": "arrbrants/custom-splash/1.2.0 (CI version sync)",
+            "User-Agent": "arrbrants/custom-splash/2.0.0 (CI version sync)",
         },
     )
     try:
