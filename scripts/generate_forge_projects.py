@@ -139,7 +139,7 @@ def gitCommit = providers.exec {
 
 version = "${rootProject.mod_version}+forge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
 group = rootProject.maven_group
-archivesBaseName = "custom-splash-${minecraft_version}-forge"
+archivesBaseName = "customsplash-${minecraft_version}-forge"
 
 minecraft {
 	mappings channel: 'official', version: minecraft_version
@@ -207,7 +207,7 @@ def gitCommit = providers.exec {
 
 version = "${rootProject.mod_version}+forge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
 group = rootProject.maven_group
-base.archivesName = "custom-splash-${minecraft_version}-forge"
+base.archivesName = "customsplash-${minecraft_version}-forge"
 
 minecraft {
 	mappings channel: 'official', version: minecraft_version
@@ -261,7 +261,7 @@ def gitCommit = providers.exec {
 
 version = "${rootProject.mod_version}+forge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
 group = rootProject.maven_group
-base.archivesName = "custom-splash-${minecraft_version}-forge"
+base.archivesName = "customsplash-${minecraft_version}-forge"
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
 
@@ -317,7 +317,7 @@ SETTINGS_GRADLE_FG5 = r"""pluginManagement {
 	}
 }
 
-rootProject.name = 'custom-splash-%%MINECRAFT%%-forge'
+rootProject.name = 'customsplash-%%MINECRAFT%%-forge'
 """
 
 SETTINGS_GRADLE_FG6 = r"""pluginManagement {
@@ -333,7 +333,7 @@ plugins {
 	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
 
-rootProject.name = 'custom-splash-%%MINECRAFT%%-forge'
+rootProject.name = 'customsplash-%%MINECRAFT%%-forge'
 """
 
 # ForgeGradle 7 is published on the Gradle Plugin Portal, so the settings
@@ -342,7 +342,7 @@ SETTINGS_GRADLE_FG7 = r"""plugins {
 	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
 
-rootProject.name = 'custom-splash-%%MINECRAFT%%-forge'
+rootProject.name = 'customsplash-%%MINECRAFT%%-forge'
 """
 
 GRADLE_PROPERTIES = """minecraft_version=%%MINECRAFT%%
@@ -377,21 +377,21 @@ loaderVersion="%%LOADER_RANGE%%"
 license="CC0-1.0"
 
 [[mods]]
-modId="custom-splash"
+modId="customsplash"
 version="${version}"
 displayName="Custom Splash"
 authors="ArrBrants"
-logoFile="assets/custom-splash/icon.png"
+logoFile="assets/customsplash/icon.png"
 description='''A mod that replaces or extends the title screen yellow splash text with custom texts, colours, gradients, placeholders and conditions.'''
 
-[[dependencies.custom-splash]]
+[[dependencies.customsplash]]
 modId="forge"
 mandatory=true
 versionRange="%%LOADER_RANGE%%"
 ordering="NONE"
 side="BOTH"
 
-[[dependencies.custom-splash]]
+[[dependencies.customsplash]]
 modId="minecraft"
 mandatory=true
 versionRange="%%MC_RANGE%%"
@@ -473,7 +473,7 @@ import org.apache.logging.log4j.Logger;
 
 @Mod(CustomSplash.MOD_ID)
 public class CustomSplash {
-	public static final String MOD_ID = "custom-splash";
+	public static final String MOD_ID = "customsplash";
 	public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
 
 	public CustomSplash() {

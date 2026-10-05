@@ -25,7 +25,7 @@ class SplashConfigTest {
 	Path dir;
 
 	private Path config() {
-		return dir.resolve("custom-splash.json");
+		return dir.resolve("customsplash.json");
 	}
 
 	private void write(String json) {
@@ -80,7 +80,7 @@ class SplashConfigTest {
 	@Test
 	@DisplayName("a missing parent directory is created")
 	void createsParentDirectory() {
-		Path nested = dir.resolve("nested").resolve("dir").resolve("custom-splash.json");
+		Path nested = dir.resolve("nested").resolve("dir").resolve("customsplash.json");
 
 		SplashConfig.load(nested, GSON);
 

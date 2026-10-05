@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from generate_common_sources import FORGE_TARGETS_FILE, read_targets  # noqa: E402
 
 CACHE = ROOT / "build" / "mapcache"
-UA = {"User-Agent": "custom-splash-forge-line-check"}
+UA = {"User-Agent": "customsplash-forge-line-check"}
 SPLASH_MANAGER = "net.minecraft.client.resources.SplashManager"
 SPLASH_RENDERER = "net.minecraft.client.gui.components.SplashRenderer"
 # The mod stops generating a refmap at this release, so later lines need no check.

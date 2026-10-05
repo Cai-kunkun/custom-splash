@@ -81,10 +81,10 @@ def target_prefix(root: Path, project: str, loader: str) -> str:
     mod_version = props["mod_version"]
     minecraft = props["minecraft_version"]
     if loader == "forge":
-        return f"custom-splash-{minecraft}-forge-{mod_version}+forge-mc{minecraft}."
+        return f"customsplash-{minecraft}-forge-{mod_version}+forge-mc{minecraft}."
     if loader == "neoforge":
-        return f"custom-splash-{minecraft}-neoforge-{mod_version}+neoforge-mc{minecraft}."
-    return f"custom-splash-{minecraft}-{mod_version}+mc{minecraft}."
+        return f"customsplash-{minecraft}-neoforge-{mod_version}+neoforge-mc{minecraft}."
+    return f"customsplash-{minecraft}-{mod_version}+mc{minecraft}."
 
 
 def check_fabric_metadata(jar_name: str, metadata: dict, covered: list[str], expected_version: str) -> list[str]:
@@ -109,8 +109,8 @@ def mc_marker(covered: list[str]) -> str:
 
 def check_mod_metadata(jar_name: str, text: str, expected_version: str, marker: str) -> list[str]:
     errors = []
-    if 'modId="custom-splash"' not in text:
-        errors.append(f"{jar_name}: missing custom-splash modId in the mod metadata")
+    if 'modId="customsplash"' not in text:
+        errors.append(f"{jar_name}: missing customsplash modId in the mod metadata")
     if marker not in text:
         errors.append(f"{jar_name}: Minecraft range does not start at {marker}")
     match = re.search(r'^version="([^"]*)"$', text, flags=re.MULTILINE)

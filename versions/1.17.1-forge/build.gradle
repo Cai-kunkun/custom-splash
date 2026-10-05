@@ -21,7 +21,7 @@ def gitCommit = providers.exec {
 
 version = "${rootProject.mod_version}+forge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
 group = rootProject.maven_group
-archivesBaseName = "custom-splash-${minecraft_version}-forge"
+archivesBaseName = "customsplash-${minecraft_version}-forge"
 
 minecraft {
 	mappings channel: 'official', version: minecraft_version

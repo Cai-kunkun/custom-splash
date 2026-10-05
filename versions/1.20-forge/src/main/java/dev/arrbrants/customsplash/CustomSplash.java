@@ -8,7 +8,7 @@ import org.apache.logging.log4j.Logger;
 
 @Mod(CustomSplash.MOD_ID)
 public class CustomSplash {
-	public static final String MOD_ID = "custom-splash";
+	public static final String MOD_ID = "customsplash";
 	public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
 
 	public CustomSplash() {

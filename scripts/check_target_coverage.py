@@ -51,7 +51,7 @@ def declared(loader: str, project: str):
         return key(match.group(1)), key(match.group(2)), True
     name = "neoforge.mods.toml" if loader == "neoforge" else "mods.toml"
     text = (resources / "META-INF" / name).read_text()
-    for block in text.split("[[dependencies.custom-splash]]")[1:]:
+    for block in text.split("[[dependencies.customsplash]]")[1:]:
         if 'modId="minecraft"' not in block:
             continue
         match = re.search(r'versionRange="\[([^,]+),([^)]+)\)"', block)

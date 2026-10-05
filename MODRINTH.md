@@ -18,12 +18,12 @@ Client-side only; nothing changes in multiplayer.
 ## Installation
 
 Drop the JAR for your Minecraft version into `mods/`. On first launch the mod
-creates `config/custom-splash.json`. Until you edit it the title screen shows
+creates `config/customsplash.json`. Until you edit it the title screen shows
 `Check your custom splash config file to customize!`.
 
 Forge downloads use the jars with `-forge-` in the filename, NeoForge downloads
 the `-neoforge-` jars and Fabric downloads use the plain
-`custom-splash-<mc>-…` jars.
+`customsplash-<mc>-…` jars.
 
 ## Configuration
 
@@ -104,7 +104,7 @@ code.
 ## Resource packs
 
 A resource pack can add splash texts by providing
-`assets/custom-splash/splashes.txt`. Each non-empty line becomes a splash text
+`assets/customsplash/splashes.txt`. Each non-empty line becomes a splash text
 and lines starting with `#` are ignored. Enabled packs are re-read
 automatically, and `SplashRegistry.reload()` forces an immediate refresh.
 

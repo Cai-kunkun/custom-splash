@@ -3,21 +3,21 @@ loaderVersion="[46,)"
 license="CC0-1.0"
 
 [[mods]]
-modId="custom-splash"
+modId="customsplash"
 version="${version}"
 displayName="Custom Splash"
 authors="ArrBrants"
-logoFile="assets/custom-splash/icon.png"
+logoFile="assets/customsplash/icon.png"
 description='''A mod that replaces or extends the title screen yellow splash text with custom texts, colours, gradients, placeholders and conditions.'''
 
-[[dependencies.custom-splash]]
+[[dependencies.customsplash]]
 modId="forge"
 mandatory=true
 versionRange="[46,)"
 ordering="NONE"
 side="BOTH"
 
-[[dependencies.custom-splash]]
+[[dependencies.customsplash]]
 modId="minecraft"
 mandatory=true
 versionRange="[1.20,1.21)"

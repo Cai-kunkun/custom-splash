@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 1,
-	"id": "custom-splash",
+	"id": "customsplash",
 	"version": "${version}",
 	"name": "Custom Splash",
 	"description": "A mod that extends splash texts.",

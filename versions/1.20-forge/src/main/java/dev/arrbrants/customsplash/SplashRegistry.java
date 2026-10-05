@@ -196,7 +196,7 @@ public final class SplashRegistry {
 		Path path = configPathCache;
 		if (path == null) {
 			Path dir = SplashPlatform.get().getConfigDir();
-			path = dir == null ? Paths.get("config") : dir.resolve("custom-splash.json");
+			path = dir == null ? Paths.get("config") : dir.resolve("customsplash.json");
 			configPathCache = path;
 		}
 		return path;

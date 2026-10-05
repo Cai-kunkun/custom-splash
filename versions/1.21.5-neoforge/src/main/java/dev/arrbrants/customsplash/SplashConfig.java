@@ -16,7 +16,7 @@ import java.util.logging.Logger;
  * schema is reused for structured resource pack files.
  */
 public final class SplashConfig {
-	private static final Logger LOGGER = Logger.getLogger("custom-splash");
+	private static final Logger LOGGER = Logger.getLogger("customsplash");
 
 	private static final String DEFAULT_JSON = "{\n"
 		+ "\t// Custom Splash configuration.\n"

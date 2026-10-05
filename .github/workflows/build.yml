@@ -99,32 +99,32 @@ jobs:
         # rather than 1.20, 26.2 rather than 26.3).
         include:
           # Fabric. The jar globs carry the loader flavour ("+mc" rather than
-          # "+forge-mc"), because a bare "custom-splash-1.20-*" would also match
+          # "+forge-mc"), because a bare "customsplash-1.20-*" would also match
           # the 1.20-forge jar and the stage step would refuse to pick one.
-          - { mc: '1.16.5',  modloader: 'fabric',   runtime: 'fabric',   java: '8',  jar: 'custom-splash-1.14.4-*+mc*.jar' }
-          - { mc: '1.19.4',  modloader: 'fabric',   runtime: 'fabric',   java: '17', jar: 'custom-splash-1.14.4-*+mc*.jar' }
-          - { mc: '1.20.1',  modloader: 'fabric',   runtime: 'fabric',   java: '17', jar: 'custom-splash-1.20-*+mc*.jar' }
-          - { mc: '1.21.11', modloader: 'fabric',   runtime: 'fabric',   java: '21', jar: 'custom-splash-1.20-*+mc*.jar' }
-          - { mc: '26.1.2',  modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'custom-splash-26.1-*+mc*.jar' }
-          - { mc: '26.2',    modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'custom-splash-26.2-*+mc*.jar' }
+          - { mc: '1.16.5',  modloader: 'fabric',   runtime: 'fabric',   java: '8',  jar: 'customsplash-1.14.4-*+mc*.jar' }
+          - { mc: '1.19.4',  modloader: 'fabric',   runtime: 'fabric',   java: '17', jar: 'customsplash-1.14.4-*+mc*.jar' }
+          - { mc: '1.20.1',  modloader: 'fabric',   runtime: 'fabric',   java: '17', jar: 'customsplash-1.20-*+mc*.jar' }
+          - { mc: '1.21.11', modloader: 'fabric',   runtime: 'fabric',   java: '21', jar: 'customsplash-1.20-*+mc*.jar' }
+          - { mc: '26.1.2',  modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'customsplash-26.1-*+mc*.jar' }
+          - { mc: '26.2',    modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'customsplash-26.2-*+mc*.jar' }
           # Forge, one row per line; the merged 1.17.1-1.19.4 line gets both ends
           # plus the popular 1.18.2 in between.
-          - { mc: '1.16.5',  modloader: 'forge',    runtime: 'lexforge', java: '8',  jar: 'custom-splash-1.16.1-forge-*+forge-mc*.jar' }
-          - { mc: '1.17.1',  modloader: 'forge',    runtime: 'lexforge', java: '16', jar: 'custom-splash-1.17.1-forge-*+forge-mc*.jar' }
-          - { mc: '1.18.2',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.17.1-forge-*+forge-mc*.jar' }
-          - { mc: '1.19.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.17.1-forge-*+forge-mc*.jar' }
-          - { mc: '1.20.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.20-forge-*+forge-mc*.jar' }
-          - { mc: '1.20.6',  modloader: 'forge',    runtime: 'lexforge', java: '21', jar: 'custom-splash-1.20.6-forge-*+forge-mc*.jar' }
+          - { mc: '1.16.5',  modloader: 'forge',    runtime: 'lexforge', java: '8',  jar: 'customsplash-1.16.1-forge-*+forge-mc*.jar' }
+          - { mc: '1.17.1',  modloader: 'forge',    runtime: 'lexforge', java: '16', jar: 'customsplash-1.17.1-forge-*+forge-mc*.jar' }
+          - { mc: '1.18.2',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'customsplash-1.17.1-forge-*+forge-mc*.jar' }
+          - { mc: '1.19.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'customsplash-1.17.1-forge-*+forge-mc*.jar' }
+          - { mc: '1.20.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'customsplash-1.20-forge-*+forge-mc*.jar' }
+          - { mc: '1.20.6',  modloader: 'forge',    runtime: 'lexforge', java: '21', jar: 'customsplash-1.20.6-forge-*+forge-mc*.jar' }
           # The 1.20-1.20.4 jar declares versionRange "[1.20,1.21)", which also
           # covers 1.20.6, but 1.20.6 ships no refmap because Forge resolves
           # official names there while the 1.20 line maps getSplash to m_280369_.
           # Boot that jar on 1.20.6 rather than assume the overlap is harmless; if
           # it fails, the 1.20 line's range has to stop below 1.20.6.
-          - { mc: '1.20.6',  modloader: 'forge',    runtime: 'lexforge', java: '21', jar: 'custom-splash-1.20-forge-*+forge-mc*.jar' }
+          - { mc: '1.20.6',  modloader: 'forge',    runtime: 'lexforge', java: '21', jar: 'customsplash-1.20-forge-*+forge-mc*.jar' }
           # NeoForge, one row per line.
-          - { mc: '1.21.4',  modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'custom-splash-1.21-neoforge-*+neoforge-mc*.jar' }
-          - { mc: '1.21.11', modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'custom-splash-1.21.5-neoforge-*+neoforge-mc*.jar' }
-          - { mc: '26.2',    modloader: 'neoforge', runtime: 'neoforge', java: '25', jar: 'custom-splash-26.1-neoforge-*+neoforge-mc*.jar' }
+          - { mc: '1.21.4',  modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'customsplash-1.21-neoforge-*+neoforge-mc*.jar' }
+          - { mc: '1.21.11', modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'customsplash-1.21.5-neoforge-*+neoforge-mc*.jar' }
+          - { mc: '26.2',    modloader: 'neoforge', runtime: 'neoforge', java: '25', jar: 'customsplash-26.1-neoforge-*+neoforge-mc*.jar' }
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
@@ -247,8 +247,8 @@ jobs:
             fi
             # One jar covers a whole release line, so publish every release it
             # declares. The project name sits between the prefix and the mod
-            # version, e.g. custom-splash-1.16.1-forge-1.2.0+forge-mc1.16.1.<sha>.
-            project=$(basename "$file" | sed -E 's/^custom-splash-(.+)-[0-9]+\.[0-9]+\.[0-9]+\+.*/\1/')
+            # version, e.g. customsplash-1.16.1-forge-1.2.0+forge-mc1.16.1.<sha>.
+            project=$(basename "$file" | sed -E 's/^customsplash-(.+)-[0-9]+\.[0-9]+\.[0-9]+\+.*/\1/')
             mc_versions=$(python3 -c "import json,sys;t={l.split()[0]:l.split()[2:] for l in open(sys.argv[2]) if l.strip() and not l.startswith('#')};print(json.dumps(t[sys.argv[1]]))" "$project" "$targets_file")
             if [ "${#version}" -gt 32 ] && printf '%s' "$version" | grep -qE '\.[0-9a-f]{8}$'; then
               # Modrinth caps version_number at 32 characters; drop the commit suffix

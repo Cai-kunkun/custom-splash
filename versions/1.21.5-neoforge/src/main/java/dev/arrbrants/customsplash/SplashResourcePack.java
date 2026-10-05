@@ -19,17 +19,17 @@ import java.util.zip.ZipFile;
 /**
  * Reads splash texts from enabled resource packs.
  *
- * <p>A pack may provide {@code assets/custom-splash/splashes.txt}, where every
+ * <p>A pack may provide {@code assets/customsplash/splashes.txt}, where every
  * non-empty line that does not start with {@code #} becomes a splash text, or
- * {@code assets/custom-splash/splashes.json}, which uses the same schema as the
+ * {@code assets/customsplash/splashes.json}, which uses the same schema as the
  * config file and therefore supports weights, colours and conditions too. Both
  * files may be present; their entries are combined.</p>
  */
 public final class SplashResourcePack {
-	private static final Logger LOGGER = Logger.getLogger("custom-splash");
+	private static final Logger LOGGER = Logger.getLogger("customsplash");
 	private static final Gson GSON = new Gson();
-	private static final String PACK_TEXT_FILE = "assets/custom-splash/splashes.txt";
-	private static final String PACK_JSON_FILE = "assets/custom-splash/splashes.json";
+	private static final String PACK_TEXT_FILE = "assets/customsplash/splashes.txt";
+	private static final String PACK_JSON_FILE = "assets/customsplash/splashes.json";
 
 	private SplashResourcePack() {
 	}

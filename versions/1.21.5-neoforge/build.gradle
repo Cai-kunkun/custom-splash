@@ -9,14 +9,14 @@ def gitCommit = providers.exec {
 
 version = "${rootProject.mod_version}+neoforge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
 group = rootProject.maven_group
-base.archivesName = "custom-splash-${minecraft_version}-neoforge"
+base.archivesName = "customsplash-${minecraft_version}-neoforge"
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
 
 neoForge {
 	version = project.neo_version
 	mods {
-		"custom-splash" {
+		"customsplash" {
 			sourceSet(sourceSets.main)
 		}
 	}

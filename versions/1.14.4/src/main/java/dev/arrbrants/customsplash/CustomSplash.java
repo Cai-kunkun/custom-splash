@@ -6,7 +6,7 @@ import net.fabricmc.loader.api.ModContainer;
 import java.util.logging.Logger;
 
 public class CustomSplash implements ModInitializer {
-	public static final String MOD_ID = "custom-splash";
+	public static final String MOD_ID = "customsplash";
 	public static final Logger LOGGER = Logger.getLogger(MOD_ID);
 
 	@Override

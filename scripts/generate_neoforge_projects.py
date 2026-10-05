@@ -89,14 +89,14 @@ def gitCommit = providers.exec {
 
 version = "${rootProject.mod_version}+neoforge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
 group = rootProject.maven_group
-base.archivesName = "custom-splash-${minecraft_version}-neoforge"
+base.archivesName = "customsplash-${minecraft_version}-neoforge"
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
 
 neoForge {
 	version = project.neo_version
 	mods {
-		"custom-splash" {
+		"customsplash" {
 			sourceSet(sourceSets.main)
 		}
 	}
@@ -136,7 +136,7 @@ plugins {
 	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
 
-rootProject.name = 'custom-splash-%%MINECRAFT%%-neoforge'
+rootProject.name = 'customsplash-%%MINECRAFT%%-neoforge'
 """
 
 # NeoForge 20.5 metadata predates the neoforge-moddev-bundle variant that
@@ -153,7 +153,7 @@ def gitCommit = providers.exec {
 
 version = "${rootProject.mod_version}+neoforge-mc${minecraft_version}" + (gitCommit.isEmpty() ? '' : ".${gitCommit}")
 group = rootProject.maven_group
-base.archivesName = "custom-splash-${minecraft_version}-neoforge"
+base.archivesName = "customsplash-${minecraft_version}-neoforge"
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
 
@@ -193,7 +193,7 @@ plugins {
 	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
 
-rootProject.name = 'custom-splash-%%MINECRAFT%%-neoforge'
+rootProject.name = 'customsplash-%%MINECRAFT%%-neoforge'
 """
 
 GRADLE_PROPERTIES = """minecraft_version=%%MINECRAFT%%
@@ -220,25 +220,25 @@ loaderVersion="[1,)"
 license="CC0-1.0"
 
 [[mods]]
-modId="custom-splash"
+modId="customsplash"
 version="${version}"
 displayName="Custom Splash"
 authors="ArrBrants"
-logoFile="assets/custom-splash/icon.png"
+logoFile="assets/customsplash/icon.png"
 clientSideOnly=true
 description='''A mod that replaces or extends the title screen yellow splash text with custom texts, colours, gradients, placeholders and conditions.'''
 
 [[mixins]]
 config="customsplash.mixins.json"
 
-[[dependencies.custom-splash]]
+[[dependencies.customsplash]]
 modId="neoforge"
 type="required"
 versionRange="[%%NEO%%,)"
 ordering="NONE"
 side="BOTH"
 
-[[dependencies.custom-splash]]
+[[dependencies.customsplash]]
 modId="minecraft"
 type="required"
 versionRange="%%MC_RANGE%%"
@@ -250,25 +250,25 @@ side="BOTH"
 NEOFORGE_MODS_TOML_MODERN = r"""license="CC0-1.0"
 
 [[mods]]
-modId="custom-splash"
+modId="customsplash"
 version="${version}"
 displayName="Custom Splash"
 authors="ArrBrants"
-logoFile="assets/custom-splash/icon.png"
+logoFile="assets/customsplash/icon.png"
 clientSideOnly=true
 description='''A mod that replaces or extends the title screen yellow splash text with custom texts, colours, gradients, placeholders and conditions.'''
 
 [[mixins]]
 config="customsplash.mixins.json"
 
-[[dependencies.custom-splash]]
+[[dependencies.customsplash]]
 modId="neoforge"
 type="required"
 versionRange="[%%NEO%%,)"
 ordering="NONE"
 side="BOTH"
 
-[[dependencies.custom-splash]]
+[[dependencies.customsplash]]
 modId="minecraft"
 type="required"
 versionRange="%%MC_RANGE%%"
@@ -338,7 +338,7 @@ import org.slf4j.LoggerFactory;
 
 @Mod(CustomSplash.MOD_ID)
 public class CustomSplash {
-	public static final String MOD_ID = "custom-splash";
+	public static final String MOD_ID = "customsplash";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
 	public CustomSplash(IEventBus modEventBus) {

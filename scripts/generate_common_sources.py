@@ -26,9 +26,9 @@ PACKAGE_DIR = "src/main/java/dev/arrbrants/customsplash"
 MIXIN_DIR = PACKAGE_DIR + "/mixin"
 RESOURCES_DIR = "src/main/resources"
 # Loaders look the mod icon up under the mod id, so the resource path must use
-# "custom-splash". This repository-level source image is copied into every
+# "customsplash". This repository-level source image is copied into every
 # version project by write_icon().
-ICON_RESOURCE = "assets/custom-splash/icon.png"
+ICON_RESOURCE = "assets/customsplash/icon.png"
 ICON_SOURCE = ROOT / RESOURCES_DIR / ICON_RESOURCE
 
 # The config file written on first launch. Gson reads the file in lenient mode,
@@ -715,7 +715,7 @@ import java.util.logging.Logger;
  * schema is reused for structured resource pack files.
  */
 public final class SplashConfig {
-	private static final Logger LOGGER = Logger.getLogger("custom-splash");
+	private static final Logger LOGGER = Logger.getLogger("customsplash");
 
 	private static final String DEFAULT_JSON = %%DEFAULT_CONFIG%%;
 
@@ -1005,7 +1005,7 @@ public final class SplashRegistry {
 \t\tPath path = configPathCache;
 \t\tif (path == null) {
 \t\t\tPath dir = SplashPlatform.get().getConfigDir();
-\t\t\tpath = dir == null ? Paths.get("config") : dir.resolve("custom-splash.json");
+\t\t\tpath = dir == null ? Paths.get("config") : dir.resolve("customsplash.json");
 \t\t\tconfigPathCache = path;
 \t\t}
 \t\treturn path;
@@ -1080,17 +1080,17 @@ import java.util.zip.ZipFile;
 /**
  * Reads splash texts from enabled resource packs.
  *
- * <p>A pack may provide {@code assets/custom-splash/splashes.txt}, where every
+ * <p>A pack may provide {@code assets/customsplash/splashes.txt}, where every
  * non-empty line that does not start with {@code #} becomes a splash text, or
- * {@code assets/custom-splash/splashes.json}, which uses the same schema as the
+ * {@code assets/customsplash/splashes.json}, which uses the same schema as the
  * config file and therefore supports weights, colours and conditions too. Both
  * files may be present; their entries are combined.</p>
  */
 public final class SplashResourcePack {
-	private static final Logger LOGGER = Logger.getLogger("custom-splash");
+	private static final Logger LOGGER = Logger.getLogger("customsplash");
 	private static final Gson GSON = new Gson();
-	private static final String PACK_TEXT_FILE = "assets/custom-splash/splashes.txt";
-	private static final String PACK_JSON_FILE = "assets/custom-splash/splashes.json";
+	private static final String PACK_TEXT_FILE = "assets/customsplash/splashes.txt";
+	private static final String PACK_JSON_FILE = "assets/customsplash/splashes.json";
 
 	private SplashResourcePack() {
 	}
@@ -1511,10 +1511,10 @@ def write_fabric_platform(project: Path) -> None:
 
 
 def write_icon(project: Path) -> None:
-    """Ship the canonical mod icon as ``assets/custom-splash/icon.png``.
+    """Ship the canonical mod icon as ``assets/customsplash/icon.png``.
 
     Loaders resolve the mod icon under the mod id, so the resource path must use
-    ``custom-splash``; the single source image lives in this repository's own
+    ``customsplash``; the single source image lives in this repository's own
     ``src/main/resources`` (which no Gradle build consumes) and is copied into
     every version project here. Shared with the Forge and NeoForge generators.
     """

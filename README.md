@@ -3,6 +3,13 @@
 A mod that replaces or extends the Minecraft title screen yellow splash text,
 available for **Fabric**, **Forge** and **NeoForge**.
 
+The mod id is `customsplash`, without a hyphen. NeoForge requires mod ids to match
+`^(?=.{2,64}$)[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$` and Forge from 1.17 derives a
+Java module name from it, which cannot contain a hyphen either, so `custom-splash`
+made the jar fail to load on both. The asset namespace, the config file
+`config/customsplash.json` and the resource-pack path
+`assets/customsplash/splashes.txt` all use the same name.
+
 The mod is client-side only. Fabric and NeoForge declare that, so a dedicated
 server disables it; the Forge port has no equivalent metadata field and simply
 does nothing there.
@@ -137,7 +144,7 @@ plus the runner's JDK 21 satisfy the per-version toolchains.
 
 ## Configuration
 
-On first launch the mod creates `config/custom-splash.json`, written with a full
+On first launch the mod creates `config/customsplash.json`, written with a full
 commented reference so the file documents itself. `//` and `/* */` comments are
 allowed anywhere in it, which is also why the examples below can be kept in place
 until you want one. Until you edit the file, the title screen shows
@@ -228,10 +235,10 @@ is used.
 
 A resource pack can add splash texts in two ways.
 
-`assets/custom-splash/splashes.txt` — each non-empty line becomes a splash text,
+`assets/customsplash/splashes.txt` — each non-empty line becomes a splash text,
 and lines starting with `#` are ignored.
 
-`assets/custom-splash/splashes.json` — the same schema as the config file, so
+`assets/customsplash/splashes.json` — the same schema as the config file, so
 these entries can carry a `weight`, a `color` and `conditions` too.
 
 Both files may be present and their entries are combined. Enabled packs are
@@ -358,7 +365,7 @@ release, and a row uses the nearest release that does have an asset.
 - `scripts/generate_common_sources.py` — writes the shared (loader-agnostic) Java sources
 - `scripts/generate_forge_projects.py` — scaffolds the Forge projects
 - `scripts/generate_neoforge_projects.py` — scaffolds the NeoForge projects
-- `src/main/resources/assets/custom-splash/icon.png` — the canonical mod icon, copied into every version project by the generators
+- `src/main/resources/assets/customsplash/icon.png` — the canonical mod icon, copied into every version project by the generators
 - `scripts/update_yarn_mappings.py` — refreshes the Yarn v2 mappings
 - `scripts/check_forge_lines.py` — resolves the SRG name each Forge line's mixin looks for, from the mappings
 - `scripts/check_target_coverage.py` — checks that every supported release is claimed by a jar and every line is fully declared

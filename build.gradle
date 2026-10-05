@@ -100,7 +100,7 @@ def targetVersion = { target ->
 	return "${modVersion}+mc${target.minecraft}"
 }
 def targetJarBase = { target ->
-	return "custom-splash-${target.name}-${targetVersion(target)}"
+	return "customsplash-${target.name}-${targetVersion(target)}"
 }
 
 def versionBuilds = targets.collect { target ->
@@ -157,7 +157,7 @@ def checkModMetadata = { File jar, String metadataPath, String expectedVersion, 
 		def entry = zip.getEntry(metadataPath)
 		if (entry == null) throw new GradleException("Missing ${metadataPath} in ${jar.name}")
 		def text = zip.getInputStream(entry).getText('UTF-8')
-		if (!text.contains('modId="custom-splash"')) {
+		if (!text.contains('modId="customsplash"')) {
 			throw new GradleException("Invalid ${metadataPath} in ${jar.name}")
 		}
 		if (!text.contains(mcMarker)) {
@@ -183,7 +183,7 @@ tasks.register('verifyReleases') {
 		def platformClasses = [fabric: 'FabricSplashPlatform', forge: 'ForgeSplashPlatform', neoforge: 'NeoForgeSplashPlatform']
 		targets.each { target ->
 			def ver = targetVersion(target)
-			def expectedName = "custom-splash-${target.name}-${ver}${gitCommit ? ".${gitCommit}" : ''}.jar"
+			def expectedName = "customsplash-${target.name}-${ver}${gitCommit ? ".${gitCommit}" : ''}.jar"
 			def matches = jars.findAll { it.name == expectedName }
 			if (matches.size() != 1) {
 				throw new GradleException("Expected one jar for ${target.loader} ${target.minecraft}, found ${matches.size()}")

@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory;
 
 @Mod(CustomSplash.MOD_ID)
 public class CustomSplash {
-	public static final String MOD_ID = "custom-splash";
+	public static final String MOD_ID = "customsplash";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
 	public CustomSplash(IEventBus modEventBus) {
