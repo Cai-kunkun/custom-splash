@@ -12,6 +12,13 @@
 # so every release on a line has to resolve getSplash to the same SRG name. CI's
 # "report mixin refmap targets" step prints the name each jar bakes in, and the
 # mcp_config mappings give the same answer for a release inside a line.
+#
+# The declared range stops at the next line's first release, so a line never
+# offers itself where a later one applies. The 1.20 jar resolves getSplash through
+# a refmap and cannot work on 1.20.6, where Forge resolves official names instead.
+#
+# Every Forge jar also ships a pack.mcmeta, because Forge loads a mod's resources
+# as a resource pack and will not finish loading without pack metadata.
 
 # ForgeGradle 5, Gradle 7.6.4, Java 8. The MCP-era splash holder is
 # net/minecraft/client/util/Splashes with func_215276_a, which the 1.16.1 refmap
@@ -32,5 +39,7 @@
 1.20-forge	1.20	1.20 1.20.1 1.20.2 1.20.3 1.20.4
 
 # ForgeGradle 7, Gradle 9.6.0, Java 21. No refmap at all, so the mixin resolves by
-# literal name and the build era is the only constraint.
+# literal name and the build era is the only constraint. Forge 1.20.6 bundles
+# Mixin 0.8.5, whose compatibility level enum stops at JAVA_17, so the mixin
+# config cannot name JAVA_21 even though the project compiles on Java 21.
 1.20.6-forge	1.20.6	1.20.6
