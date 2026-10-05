@@ -14,6 +14,7 @@ SplashRenderer.
 """
 
 import json
+import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1526,6 +1527,38 @@ def write_icon(project: Path) -> None:
         target.write_bytes(icon)
 
 
+def write(project: Path, relative: Path, content: str) -> None:
+    """Write a project file, creating parent directories on the way."""
+    target = project / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+
+
+def write_shared_sources(project: Path, platform_file: str, platform_source: str,
+                         initializer: str, mixin_source: str) -> None:
+    """Emit the classes every loader shares plus its own platform and entry point."""
+    for name, content in SOURCES.items():
+        write(project, Path(PACKAGE_DIR) / name, content)
+    write(project, Path(PACKAGE_DIR) / platform_file, platform_source)
+    write(project, Path(PACKAGE_DIR) / "CustomSplash.java", initializer)
+    write(project, Path(MIXIN_DIR) / "SplashManagerMixin.java", mixin_source)
+    write_icon(project)
+
+
+def copy_wrapper(project: Path, compile_version: str, wrapper_properties: str,
+                 distribution_url: str) -> None:
+    """Borrow the wrapper scripts and jar from the Fabric project covering a release.
+
+    Only the distribution URL differs per era, so both loader generators pass their
+    own template and URL in and share everything else.
+    """
+    source = ROOT / "versions" / fabric_project_for(compile_version)
+    (project / "gradle" / "wrapper").mkdir(parents=True, exist_ok=True)
+    for name in ("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar"):
+        shutil.copyfile(source / name, project / name)
+    (project / "gradlew").chmod(0o755)
+    write(project, Path("gradle/wrapper/gradle-wrapper.properties"),
+          wrapper_properties.replace("%%DIST_URL%%", distribution_url))
 
 
 if __name__ == "__main__":

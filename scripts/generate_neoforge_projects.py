@@ -30,9 +30,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from generate_common_sources import (NEOFORGE_TARGETS_FILE, SOURCES,  # noqa: E402
-                                    check_range, fabric_project_for, mixin_for,
-                                    read_supported_versions, read_targets, write_icon)
+from generate_common_sources import (NEOFORGE_TARGETS_FILE, check_range,  # noqa: E402
+                                    copy_wrapper, mixin_for, read_supported_versions,
+                                    read_targets, write, write_shared_sources)
 
 PACKAGE_DIR = Path("src/main/java/dev/arrbrants/customsplash")
 RESOURCES_DIR = Path("src/main/resources")
@@ -76,23 +76,6 @@ def gradle_distribution_url(minecraft: str) -> str:
 
 def mixin_compatibility(minecraft: str) -> str:
     return "JAVA_%s" % NEOFORGE_SPECS[minecraft][1]
-
-
-def write(project: Path, relative: Path, content: str) -> None:
-    target = project / relative
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-
-
-def copy_wrapper(project: Path, minecraft: str) -> None:
-    """Reuse the wrapper scripts and jar from the Fabric project covering it."""
-    source = ROOT / "versions" / fabric_project_for(minecraft)
-    (project / "gradle" / "wrapper").mkdir(parents=True, exist_ok=True)
-    for name in ("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar"):
-        shutil.copyfile(source / name, project / name)
-    (project / "gradlew").chmod(0o755)
-    write(project, Path("gradle/wrapper/gradle-wrapper.properties"),
-          WRAPPER_PROPERTIES.replace("%%DIST_URL%%", gradle_distribution_url(minecraft)))
 
 
 BUILD_GRADLE = r"""plugins {
@@ -414,14 +397,11 @@ def main() -> None:
 		      .replace("%%MINECRAFT%%", compile_version)
 		      .replace("%%NEO%%", neo_version)
 		      .replace("%%JAVA%%", java_version))
-		copy_wrapper(project, compile_version)
+		copy_wrapper(project, compile_version, WRAPPER_PROPERTIES,
+		             gradle_distribution_url(compile_version))
 
-		for name, content in SOURCES.items():
-			write(project, PACKAGE_DIR / name, content)
-		write(project, PACKAGE_DIR / "NeoForgeSplashPlatform.java", NEOFORGE_PLATFORM)
-		write(project, PACKAGE_DIR / "CustomSplash.java", NEOFORGE_INITIALIZER)
-		write(project, PACKAGE_DIR / "mixin" / "SplashManagerMixin.java",
-		      mixin_for(compile_version))
+		write_shared_sources(project, "NeoForgeSplashPlatform.java", NEOFORGE_PLATFORM,
+		                     NEOFORGE_INITIALIZER, mixin_for(compile_version))
 
 		template = NEOFORGE_MODS_TOML if classic else NEOFORGE_MODS_TOML_MODERN
 		write(project, RESOURCES_DIR / "META-INF" / "neoforge.mods.toml",
@@ -430,7 +410,6 @@ def main() -> None:
 		      .replace("%%MC_RANGE%%", mc_range))
 		write(project, RESOURCES_DIR / "customsplash.mixins.json",
 		      MIXINS_JSON.replace("%%COMPAT%%", mixin_compatibility(compile_version)))
-		write_icon(project)
 		print(f"updated neoforge {target}")
 
 
