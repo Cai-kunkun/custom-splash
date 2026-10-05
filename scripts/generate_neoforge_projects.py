@@ -61,7 +61,7 @@ NEOFORGE_SPECS = {
     "26.3": ("26.3.0.23-beta", "25", False),
 }
 
-MODDED_GRADLE = "9.2.1"
+MODDED_GRADLE = "9.6.0"
 
 
 def uses_neogradle(minecraft: str) -> bool:

@@ -71,9 +71,22 @@ for 1.16.x, Java 16 for 1.17.1, Java 17 for the rest), which it discovers
 through the `JAVA_HOME_8_X64`, `JAVA_HOME_16_X64` and `JAVA_HOME_17_X64`
 environment variables. The 1.20.x ports use ForgeGradle 6 (Gradle 8.13) and
 accept Java 17–21; the 1.20.6 port uses ForgeGradle 7 (Gradle 9.6.0) on Java 21.
-The NeoForge ports use ModDevGradle (Gradle 9.2.1) on Java 21, with a Java 25
+The NeoForge ports use ModDevGradle (Gradle 9.6.0) on Java 21, with a Java 25
 toolchain for the 26.x line; 1.20.5 uses the legacy NeoGradle plugin instead,
 because ModDevGradle 2.x needs the newer NeoForge metadata that 20.5 predates.
+
+Every project therefore uses one of exactly three Gradle releases, one per Gradle
+major line, and each is pinned by the oldest build plugin on that line rather
+than by drift:
+
+| Gradle | Used by | Pinned by |
+| --- | --- | --- |
+| 7.6.4 | Forge 1.16.1–1.19.4 | ForgeGradle 5, which does not support Gradle 8 |
+| 8.13 | Forge 1.20–1.20.4, Fabric 1.14–1.20 | ForgeGradle 6 and Fabric Loom 1.6 |
+| 9.6.0 | Forge 1.20.6, NeoForge, Fabric 26.x | ForgeGradle 7, ModDevGradle and Loom 1.17 |
+
+The Fabric 26.x line needs a newer Loom than the older Fabric releases, so those
+two cannot share a Gradle release without migrating Loom itself.
 
 Build every version, check each JAR, and collect them in `build/releases`:
 
