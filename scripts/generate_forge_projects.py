@@ -37,6 +37,26 @@ PACKAGE_DIR = Path("src/main/java/dev/arrbrants/customsplash")
 RESOURCES_DIR = Path("src/main/resources")
 FORGE_VERSIONS_FILE = ROOT / "supported-forge-versions.txt"
 
+# Forge exposes a mod's resources as a resource pack and refuses to finish loading
+# without pack metadata: 1.20.4 stops with "Missing metadata in pack mod:<id>" and
+# older Forge logs "Couldn't get pack info for ... 'pack.mcmeta'". Fabric does not
+# need one, which is why the jars shipped without it. The value is the resource
+# pack format of the release each line is compiled against.
+PACK_FORMAT = {
+    "1.16.1": 5,
+    "1.17.1": 7,
+    "1.20": 15,
+    "1.20.6": 32,
+}
+
+PACK_MCMETA = """{
+\t"pack": {
+\t\t"description": "Custom Splash resources",
+\t\t"pack_format": %%FORMAT%%
+\t}
+}
+"""
+
 # minecraft -> (forge_version, java_version, fml_loader_range, minecraft_range)
 FORGE_SPECS = {
     "1.16.1": ("32.0.108", "8", "[32,)", "[1.16.1,1.16.2)"),
@@ -76,12 +96,13 @@ def is_fg6(minecraft: str) -> bool:
 
 
 def mixin_compatibility(minecraft: str) -> str:
+    # Forge 1.20.6 bundles Mixin 0.8.5, whose CompatibilityLevel enum stops at
+    # JAVA_17, so naming a newer level aborts startup with a MixinInitialisationError.
+    # NeoForge ships a newer Mixin and is free to name JAVA_21 and up.
     if minecraft.startswith("1.16"):
         return "JAVA_8"
     if minecraft == "1.17.1":
         return "JAVA_16"
-    if minecraft == "1.20.6":
-        return "JAVA_21"
     return "JAVA_17"
 
 
@@ -489,18 +510,28 @@ public class CustomSplash {
 """
 
 
-def forge_group_ranges(covered: list) -> tuple:
+def key(version: str) -> tuple:
+	return tuple(int(part) for part in version.split("."))
+
+
+def forge_group_ranges(covered: list, next_first) -> tuple:
 	"""The loader and Minecraft ranges that cover a whole Forge line.
 
-	Every spec's Minecraft range ends where the next line starts, so the last
-	covered release supplies the exclusive upper bound. The oldest release
-	supplies the loader range, which then spans every Forge version in the line.
+	The oldest release supplies the loader range, which then spans every Forge
+	version in the line. The upper bound is the next line's first release whenever
+	that comes sooner than the spec's own end, so a line never claims a release
+	belonging to a later one: the 1.20-1.20.4 jar resolves getSplash through a
+	refmap while Forge uses official names from 1.20.6, so a range reaching 1.21
+	offered that jar where its mixin cannot apply.
 	"""
 	loader_range = FORGE_SPECS[covered[0]][2]
 	match = re.fullmatch(r"\[[^,]+,([^)]+)\)", FORGE_SPECS[covered[-1]][3])
 	if not match:
 		raise SystemExit(f"unexpected Minecraft range: {FORGE_SPECS[covered[-1]][3]}")
-	return loader_range, f"[{covered[0]},{match.group(1)})"
+	upper = match.group(1)
+	if next_first is not None and key(next_first) < key(upper):
+		upper = next_first
+	return loader_range, f"[{covered[0]},{upper})"
 
 
 def main() -> None:
@@ -509,7 +540,7 @@ def main() -> None:
 	listed = [version for _target, _compile, covered in targets for version in covered]
 	if listed != FORGE_VERSIONS_FILE.read_text().split():
 		raise SystemExit("forge-targets.txt must cover supported-forge-versions.txt exactly, in order")
-	for target, compile_version, covered in targets:
+	for index, (target, compile_version, covered) in enumerate(targets):
 		if not target.endswith("-forge"):
 			raise SystemExit(f"a Forge target must be named <mc>-forge, got {target}")
 		for minecraft in covered:
@@ -519,7 +550,8 @@ def main() -> None:
 				raise SystemExit(f"{minecraft} is not a Fabric version project")
 
 		forge_version, java_version = FORGE_SPECS[compile_version][:2]
-		loader_range, mc_range = forge_group_ranges(covered)
+		next_first = targets[index + 1][2][0] if index + 1 < len(targets) else None
+		loader_range, mc_range = forge_group_ranges(covered, next_first)
 		check_range(covered, mc_range.rsplit(",", 1)[1][:-1], FORGE_TARGETS_FILE)
 		project = ROOT / "versions" / target
 		if is_fg7(compile_version):
@@ -557,6 +589,8 @@ def main() -> None:
 		      .replace("%%MC_RANGE%%", mc_range))
 		write(project, RESOURCES_DIR / "customsplash.mixins.json",
 		      mixins_json.replace("%%COMPAT%%", mixin_compatibility(compile_version)))
+		write(project, RESOURCES_DIR / "pack.mcmeta",
+		      PACK_MCMETA.replace("%%FORMAT%%", str(PACK_FORMAT[compile_version])))
 		print(f"updated forge {target}")
 
 

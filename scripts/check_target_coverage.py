@@ -11,12 +11,11 @@ supports, so three things have to hold at once:
 * every release in ``supported-*-versions.txt`` is claimed by at least one jar,
   otherwise an upload supports nothing;
 * the range a jar declares matches the line its targets file gives it, otherwise
-  the jar promises releases it was not built for.
-
-Overlapping claims are reported but not fatal, because two jars legitimately
-cover a release when the build era changes inside a Minecraft line. Today the
-only one is 1.20.6 on Forge: the 1.20-1.20.4 jar declares ``[1.20,1.21)`` and
-1.20.6 ships a jar of its own, and the smoke matrix boots both on 1.20.6.
+  the jar promises releases it was not built for. A jar that declares a release
+  belonging to a later line is a failure, because the later line exists precisely
+  because something changed: the Forge 1.20-1.20.4 jar resolves getSplash through
+  a refmap, and a range reaching 1.21 offered it on 1.20.6, where Forge resolves
+  official names and the injection could not find its target.
 
 Reads only the generated projects, so it needs no build and no network.
 """
@@ -88,7 +87,6 @@ def covers(span, release: str) -> bool:
 
 def main() -> None:
     failures = 0
-    overclaims = []
     for loader, targets_file, versions_file in LOADERS:
         supported = [line.strip() for line in (ROOT / versions_file).read_text().splitlines()
                      if line.strip() and not line.startswith("#")]
@@ -113,7 +111,9 @@ def main() -> None:
             extra = [release for release in supported
                      if covers(span, release) and release not in covered]
             if extra:
-                overclaims.append((loader, project, extra))
+                print(f"{loader}/{project}: its jar also declares {extra}, which belong to "
+                      f"a later line")
+                failures += 1
 
         # Coverage comes from what the jars actually declare, not from the lines.
         claims = defaultdict(list)
@@ -131,14 +131,10 @@ def main() -> None:
         for release, names in sorted(overlaps.items(), key=lambda item: key(item[0])):
             print(f"  {release} is claimed by {', '.join(names)}")
 
-    if overclaims:
-        print("\nJars that declare releases outside their line:")
-        for loader, project, extra in overclaims:
-            print(f"  {loader}/{project} also declares {', '.join(extra)}")
     if failures:
         raise SystemExit(f"\n{failures} metadata problem(s)")
     print("\nEvery mod id passes the strictest loader rule, every supported release is claimed "
-          "by at least one jar, and every line is fully declared by its own jar.")
+          "by exactly one jar, and no jar declares a release from another line.")
 
 
 if __name__ == "__main__":
