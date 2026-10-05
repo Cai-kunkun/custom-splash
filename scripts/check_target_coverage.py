@@ -47,6 +47,14 @@ SMOKE_ROW = re.compile(
     r"^\s*-\s*\{\s*mc:\s*'([^']+)',\s*modloader:\s*'([^']+)',.*?jar:\s*'([^']+)'")
 JAR_FLAVOUR = {"fabric": "mc", "forge": "forge-mc", "neoforge": "neoforge-mc"}
 
+# pack.mcmeta is the one Forge needs and the others do not: without it Forge will
+# not finish loading a mod whose resources it exposes as a resource pack.
+REQUIRED_RESOURCES = {
+    "fabric": ("fabric.mod.json", "customsplash.mixins.json"),
+    "forge": ("META-INF/mods.toml", "customsplash.mixins.json", "pack.mcmeta"),
+    "neoforge": ("META-INF/neoforge.mods.toml", "customsplash.mixins.json"),
+}
+
 
 def smoke_rows():
     """The (release, loader, jar glob) triples the smoke matrix boots."""
@@ -157,6 +165,13 @@ def main() -> None:
                 print(f"{loader}/{project}: mod id {mod_id!r} would be rejected by the strictest "
                       f"loader; NeoForge requires {MOD_ID_PATTERN.pattern}")
                 failures += 1
+            # The jar has to carry the resources its loader needs, and the icon
+            # has to sit under the mod id the loader looks it up by.
+            resources = ROOT / "versions" / project / "src" / "main" / "resources"
+            for relative in REQUIRED_RESOURCES[loader] + (f"assets/{mod_id}/icon.png",):
+                if not (resources / relative).is_file():
+                    print(f"{loader}/{project}: missing {relative}")
+                    failures += 1
             # A jar has to claim every release its own line says it covers.
             missing = [release for release in covered if not covers(span, release)]
             if missing:
