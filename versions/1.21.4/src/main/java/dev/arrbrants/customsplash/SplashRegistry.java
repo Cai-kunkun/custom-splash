@@ -148,14 +148,22 @@ public final class SplashRegistry {
 	 * Pick one entry using relative weights. Visible for testing.
 	 */
 	static SplashEntry chooseWeighted(List<SplashEntry> pool, Random random) {
-		int total = 0;
+		long total = 0L;
 		for (SplashEntry entry : pool) {
 			total += entry.weightOrDefault();
 		}
-		int roll = random.nextInt(total);
+		if (total <= 0L) {
+			// Only reachable for a hand-built pool; never let the picker throw.
+			return pool.get(random.nextInt(pool.size()));
+		}
+		// Keep the int draw while it fits, so seeded results stay unchanged. Absurd
+		// weights used to overflow this sum into a negative bound and crash.
+		long roll = total <= Integer.MAX_VALUE
+				? random.nextInt((int) total)
+				: Math.floorMod(random.nextLong(), total);
 		for (SplashEntry entry : pool) {
 			roll -= entry.weightOrDefault();
-			if (roll < 0) {
+			if (roll < 0L) {
 				return entry;
 			}
 		}

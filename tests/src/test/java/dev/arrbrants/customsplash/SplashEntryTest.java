@@ -192,4 +192,30 @@ class SplashEntryTest {
 		assertTrue(new SplashEntry("x", 1).matches(context("Steve")));
 		assertTrue(new SplashEntry("x", 1).matchesConditions(null, context("Steve")));
 	}
+
+	@Test
+	@DisplayName("condition problems are reported for the config validator")
+	void conditionProblems() {
+		SplashEntry.Conditions conditions = conditions();
+		assertNull(conditions.timeProblem());
+		assertNull(conditions.dateProblem());
+
+		conditions.time = "day";
+		assertNull(conditions.timeProblem());
+		conditions.time = "NIGHT";
+		assertNull(conditions.timeProblem());
+		conditions.time = "whenever";
+		assertEquals("expected day or night", conditions.timeProblem());
+
+		conditions.date = "12-24";
+		assertNull(conditions.dateProblem());
+		conditions.date = "12-24..01-06";
+		assertNull(conditions.dateProblem());
+		conditions.date = "13-01";
+		assertEquals("expected month 01-12 and day 01-31", conditions.dateProblem());
+		conditions.date = "not-a-date";
+		assertEquals("expected MM-DD or MM-DD..MM-DD", conditions.dateProblem());
+		conditions.date = "01-01..02-02..03-03";
+		assertEquals("expected MM-DD or MM-DD..MM-DD", conditions.dateProblem());
+	}
 }

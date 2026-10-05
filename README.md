@@ -3,6 +3,10 @@
 A mod that replaces or extends the Minecraft title screen yellow splash text,
 available for **Fabric**, **Forge** and **NeoForge**.
 
+The mod is client-side only. Fabric and NeoForge declare that, so a dedicated
+server disables it; the Forge port has no equivalent metadata field and simply
+does nothing there.
+
 ## Supported versions
 
 Each supported Minecraft version is an independent Gradle project under `versions/`.
@@ -80,8 +84,16 @@ plus the runner's JDK 21 satisfy the per-version toolchains.
 
 ## Configuration
 
-On first launch the mod creates `config/custom-splash.json`. Until you edit it,
-the title screen shows `Check your custom splash config file to customize!`.
+On first launch the mod creates `config/custom-splash.json`, written with a full
+commented reference so the file documents itself. `//` and `/* */` comments are
+allowed anywhere in it, which is also why the examples below can be kept in place
+until you want one. Until you edit the file, the title screen shows
+`Check your custom splash config file to customize!`.
+
+Values that cannot work are reported in the log when the config is loaded: an
+unparseable `color`, an unparseable `date`, an unknown `time`, a `chance` outside
+`0.0`–`1.0`, or a non-positive `weight`. They used to fail silently, which made a
+broken config impossible to debug.
 
 ```json
 {
@@ -161,10 +173,16 @@ is used.
 
 ## Resource packs
 
-A resource pack can add splash texts by providing
-`assets/custom-splash/splashes.txt`. Each non-empty line becomes a splash text;
-lines starting with `#` are ignored. Enabled packs are re-read automatically, and
-`SplashRegistry.reload()` forces an immediate refresh.
+A resource pack can add splash texts in two ways.
+
+`assets/custom-splash/splashes.txt` — each non-empty line becomes a splash text,
+and lines starting with `#` are ignored.
+
+`assets/custom-splash/splashes.json` — the same schema as the config file, so
+these entries can carry a `weight`, a `color` and `conditions` too.
+
+Both files may be present and their entries are combined. Enabled packs are
+re-read automatically, and `SplashRegistry.reload()` forces an immediate refresh.
 
 ## Usage
 

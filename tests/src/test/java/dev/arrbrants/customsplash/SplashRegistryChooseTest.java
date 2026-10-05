@@ -98,4 +98,19 @@ class SplashRegistryChooseTest {
 		assertTrue(seen[2] > 2700 && seen[2] < 3300, () -> "c: " + seen[2]);
 		assertEquals(6000, seen[0] + seen[1] + seen[2]);
 	}
+
+	@Test
+	@DisplayName("absurd weights cannot overflow the picker")
+	void hugeWeightsDoNotOverflow() {
+		// Two int-sized weights used to overflow the running total into a
+		// negative bound, and Random.nextInt threw on the title screen.
+		SplashEntry first = entry("first", Integer.MAX_VALUE);
+		SplashEntry second = entry("second", Integer.MAX_VALUE);
+		List<SplashEntry> pool = Arrays.asList(first, second);
+		Random random = new Random(11);
+		for (int i = 0; i < 2000; i++) {
+			SplashEntry chosen = SplashRegistry.chooseWeighted(pool, random);
+			assertTrue(chosen == first || chosen == second, "picked outside the pool");
+		}
+	}
 }

@@ -10,7 +10,7 @@
 		"sources": "https://github.com/Cai-kunkun/custom-splash",
 		"issues": "https://github.com/Cai-kunkun/custom-splash/issues"
 	},
-	"environment": "*",
+	"environment": "client",
 	"entrypoints": {"main": ["dev.arrbrants.customsplash.CustomSplash"]},
 	"mixins": ["customsplash.mixins.json"],
 	"depends": {

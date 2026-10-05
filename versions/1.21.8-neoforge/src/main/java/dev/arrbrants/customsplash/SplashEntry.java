@@ -111,6 +111,45 @@ public final class SplashEntry {
 			return Integer.parseInt(parts[0]) * 100 + Integer.parseInt(parts[1]);
 		}
 
+		/**
+		 * @return why {@link #time} cannot match anything, or {@code null} when it is fine
+		 */
+		String timeProblem() {
+			if (time == null || time.isEmpty()) {
+				return null;
+			}
+			if ("day".equalsIgnoreCase(time) || "night".equalsIgnoreCase(time)) {
+				return null;
+			}
+			return "expected day or night";
+		}
+
+		/**
+		 * @return why {@link #date} can never match, or {@code null} when it is fine
+		 */
+		String dateProblem() {
+			if (date == null || date.isEmpty()) {
+				return null;
+			}
+			try {
+				String[] range = date.split("\\.\\.");
+				if (range.length > 2) {
+					return "expected MM-DD or MM-DD..MM-DD";
+				}
+				for (String part : range) {
+					int monthDay = parseMonthDay(part);
+					int month = monthDay / 100;
+					int day = monthDay % 100;
+					if (month < 1 || month > 12 || day < 1 || day > 31) {
+						return "expected month 01-12 and day 01-31";
+					}
+				}
+				return null;
+			} catch (RuntimeException exception) {
+				return "expected MM-DD or MM-DD..MM-DD";
+			}
+		}
+
 		private boolean matchesWeekend(SplashContext context) {
 			if (weekend == null) {
 				return true;

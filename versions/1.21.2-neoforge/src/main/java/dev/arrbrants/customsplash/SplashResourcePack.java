@@ -19,13 +19,17 @@ import java.util.zip.ZipFile;
 /**
  * Reads splash texts from enabled resource packs.
  *
- * <p>A pack may provide {@code assets/custom-splash/splashes.txt}; every
- * non-empty line that does not start with {@code #} becomes a splash text.</p>
+ * <p>A pack may provide {@code assets/custom-splash/splashes.txt}, where every
+ * non-empty line that does not start with {@code #} becomes a splash text, or
+ * {@code assets/custom-splash/splashes.json}, which uses the same schema as the
+ * config file and therefore supports weights, colours and conditions too. Both
+ * files may be present; their entries are combined.</p>
  */
 public final class SplashResourcePack {
 	private static final Logger LOGGER = Logger.getLogger("custom-splash");
 	private static final Gson GSON = new Gson();
-	private static final String PACK_FILE = "assets/custom-splash/splashes.txt";
+	private static final String PACK_TEXT_FILE = "assets/custom-splash/splashes.txt";
+	private static final String PACK_JSON_FILE = "assets/custom-splash/splashes.json";
 
 	private SplashResourcePack() {
 	}
@@ -41,16 +45,41 @@ public final class SplashResourcePack {
 		}
 		List<SplashEntry> entries = new ArrayList<>();
 		for (String name : enabledPacks(gameDir)) {
-			for (String line : readLines(packsDir.resolve(name))) {
-				String text = line.trim();
-				if (!text.isEmpty() && !text.startsWith("#")) {
-					SplashEntry entry = new SplashEntry();
-					entry.text = text;
-					entries.add(entry);
-				}
+			Path pack = packsDir.resolve(name);
+			entries.addAll(readTextEntries(pack));
+			entries.addAll(readJsonEntries(pack));
+		}
+		return entries;
+	}
+
+	private static List<SplashEntry> readTextEntries(Path pack) {
+		byte[] data = read(pack, PACK_TEXT_FILE);
+		if (data == null) {
+			return Collections.emptyList();
+		}
+		List<SplashEntry> entries = new ArrayList<>();
+		for (String line : splitLines(data)) {
+			String text = line.trim();
+			if (!text.isEmpty() && !text.startsWith("#")) {
+				SplashEntry entry = new SplashEntry();
+				entry.text = text;
+				entries.add(entry);
 			}
 		}
 		return entries;
+	}
+
+	private static List<SplashEntry> readJsonEntries(Path pack) {
+		byte[] data = read(pack, PACK_JSON_FILE);
+		if (data == null) {
+			return Collections.emptyList();
+		}
+		try {
+			return SplashConfig.parse(new String(data, StandardCharsets.UTF_8), GSON).splashes;
+		} catch (RuntimeException exception) {
+			LOGGER.log(Level.WARNING, "Could not parse " + PACK_JSON_FILE + " in " + pack, exception);
+			return Collections.emptyList();
+		}
 	}
 
 	private static List<String> enabledPacks(Path gameDir) {
@@ -78,34 +107,35 @@ public final class SplashResourcePack {
 		return Collections.emptyList();
 	}
 
-	private static List<String> readLines(Path pack) {
+	/**
+	 * @return the bytes of {@code resource} inside the pack, or {@code null} when absent
+	 */
+	private static byte[] read(Path pack, String resource) {
 		try {
 			if (Files.isDirectory(pack)) {
-				Path file = pack.resolve(PACK_FILE);
-				return Files.isRegularFile(file)
-						? Files.readAllLines(file, StandardCharsets.UTF_8)
-						: Collections.emptyList();
+				Path file = pack.resolve(resource);
+				return Files.isRegularFile(file) ? Files.readAllBytes(file) : null;
 			}
 			if (Files.isRegularFile(pack)) {
 				try (ZipFile zip = new ZipFile(pack.toFile())) {
-					ZipEntry entry = zip.getEntry(PACK_FILE);
+					ZipEntry entry = zip.getEntry(resource);
 					if (entry == null) {
-						return Collections.emptyList();
+						return null;
 					}
 					try (InputStream stream = zip.getInputStream(entry)) {
-						return splitLines(readAll(stream));
+						return readAll(stream);
 					}
 				}
 			}
 		} catch (IOException | RuntimeException exception) {
-			LOGGER.log(Level.FINE, "Could not read resource pack " + pack, exception);
+			LOGGER.log(Level.FINE, "Could not read " + resource + " from " + pack, exception);
 		}
-		return Collections.emptyList();
+		return null;
 	}
 
 	private static List<String> splitLines(byte[] data) {
 		List<String> lines = new ArrayList<>();
-		for (String line : new String(data, StandardCharsets.UTF_8).split("\\r?\\n")) {
+		for (String line : new String(data, StandardCharsets.UTF_8).split("\r?\n")) {
 			lines.add(line);
 		}
 		return lines;

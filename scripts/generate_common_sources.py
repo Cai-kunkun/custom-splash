@@ -13,6 +13,7 @@ SplashManager#getSplash under Mojang mappings (1.14.4-1.19.4); 1.20+ uses
 SplashRenderer.
 """
 
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,59 @@ RESOURCES_DIR = "src/main/resources"
 # version project by write_icon().
 ICON_RESOURCE = "assets/custom-splash/icon.png"
 ICON_SOURCE = ROOT / RESOURCES_DIR / ICON_RESOURCE
+
+# The config file written on first launch. Gson reads the file in lenient mode,
+# so "//" comments are allowed; every example below stays commented out so a
+# fresh install only shows the instructional splash.
+DEFAULT_CONFIG = """{
+\t// Custom Splash configuration.
+\t//
+\t// "splashes" lists the texts shown on the title screen. One entry is picked at
+\t// random each time the title screen is opened, and a higher "weight" is picked
+\t// more often. Comments like these are allowed anywhere in the file, so this
+\t// reference and the examples below can be kept for later.
+\t//
+\t// Fields - only "text" is required:
+\t//
+\t//   "text"        the splash text. Placeholders are filled in when it is drawn:
+\t//                 {player} {username} {date} {time} {mc_version} {mc}
+\t//                 {version} {mods} {mods_count}
+\t//   "weight"      relative chance, default 1.
+\t//   "color"       "#RRGGBB", a gradient "#RRGGBB,#RRGGBB" with two or more
+\t//                 stops, "rainbow", or "rainbow:<degrees per character>".
+\t//   "conditions"  every listed condition must match:
+\t//                 "time"     "day" or "night"
+\t//                 "date"     "MM-DD" or "MM-DD..MM-DD", may wrap the new year
+\t//                 "weekend"  true or false
+\t//                 "player"   list of usernames
+\t//                 "mods"     list of required mod ids
+\t//                 "chance"   0.0 to 1.0
+\t//
+\t// Examples - delete the leading "//" to enable one:
+\t//
+\t//   { "text": "Hello, {player}!", "weight": 5, "color": "#FFAA00" },
+\t//   { "text": "Gradient!", "color": "#FF0000,#00FF00" },
+\t//   { "text": "Rainbow!", "color": "rainbow:25" },
+\t//   { "text": "Enjoy the weekend!", "conditions": { "weekend": true } },
+\t//   { "text": "Late night coding", "conditions": { "time": "night", "chance": 0.5 } },
+\t//   { "text": "Happy holidays!", "conditions": { "date": "12-20..12-26" } },
+\t//   { "text": "You run Fabric!", "conditions": { "mods": ["fabric"] } },
+\t//
+\t"splashes": [
+\t\t{ "text": "Check your custom splash config file to customize!" }
+\t]
+}
+"""
+
+
+def java_string_literal(text: str, indent: str = "\t\t") -> str:
+    """Render text as a multi-line Java string concatenation (Java 8 safe)."""
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    quoted = [json.dumps(line + "\n") for line in lines]
+    return ("\n" + indent + "+ ").join(quoted)
+
 
 SOURCES = {}
 
@@ -557,6 +611,45 @@ public final class SplashEntry {
 \t\t\treturn Integer.parseInt(parts[0]) * 100 + Integer.parseInt(parts[1]);
 \t\t}
 
+\t\t/**
+\t\t * @return why {@link #time} cannot match anything, or {@code null} when it is fine
+\t\t */
+\t\tString timeProblem() {
+\t\t\tif (time == null || time.isEmpty()) {
+\t\t\t\treturn null;
+\t\t\t}
+\t\t\tif ("day".equalsIgnoreCase(time) || "night".equalsIgnoreCase(time)) {
+\t\t\t\treturn null;
+\t\t\t}
+\t\t\treturn "expected day or night";
+\t\t}
+
+\t\t/**
+\t\t * @return why {@link #date} can never match, or {@code null} when it is fine
+\t\t */
+\t\tString dateProblem() {
+\t\t\tif (date == null || date.isEmpty()) {
+\t\t\t\treturn null;
+\t\t\t}
+\t\t\ttry {
+\t\t\t\tString[] range = date.split("\\\\.\\\\.");
+\t\t\t\tif (range.length > 2) {
+\t\t\t\t\treturn "expected MM-DD or MM-DD..MM-DD";
+\t\t\t\t}
+\t\t\t\tfor (String part : range) {
+\t\t\t\t\tint monthDay = parseMonthDay(part);
+\t\t\t\t\tint month = monthDay / 100;
+\t\t\t\t\tint day = monthDay % 100;
+\t\t\t\t\tif (month < 1 || month > 12 || day < 1 || day > 31) {
+\t\t\t\t\t\treturn "expected month 01-12 and day 01-31";
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t\treturn null;
+\t\t\t} catch (RuntimeException exception) {
+\t\t\t\treturn "expected MM-DD or MM-DD..MM-DD";
+\t\t\t}
+\t\t}
+
 \t\tprivate boolean matchesWeekend(SplashContext context) {
 \t\t\tif (weekend == null) {
 \t\t\t\treturn true;
@@ -614,44 +707,101 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * The JSON config model. A default file is written on first launch.
+ * The JSON config model. A default file is written on first launch, and the same
+ * schema is reused for structured resource pack files.
  */
 public final class SplashConfig {
-\tprivate static final Logger LOGGER = Logger.getLogger("custom-splash");
+	private static final Logger LOGGER = Logger.getLogger("custom-splash");
 
-\tprivate static final String DEFAULT_JSON = "{\\n"
-\t\t+ "\\t\\"splashes\\": [\\n"
-\t\t+ "\\t\\t{ \\"text\\": \\"Check your custom splash config file to customize!\\" }\\n"
-\t\t+ "\\t]\\n"
-\t\t+ "}\\n";
+	private static final String DEFAULT_JSON = %%DEFAULT_CONFIG%%;
 
-\tpublic List<SplashEntry> splashes = new ArrayList<>();
+	public List<SplashEntry> splashes = new ArrayList<>();
 
-\tstatic SplashConfig load(Path path, Gson gson) {
-\t\ttry {
-\t\t\tif (path.getParent() != null) {
-\t\t\t\tFiles.createDirectories(path.getParent());
-\t\t\t}
-\t\t\tif (!Files.exists(path)) {
-\t\t\t\tFiles.write(path, DEFAULT_JSON.getBytes(StandardCharsets.UTF_8));
-\t\t\t\tLOGGER.info("Created default splash config at " + path);
-\t\t\t}
-\t\t\tString json = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
-\t\t\tSplashConfig parsed = gson.fromJson(json, SplashConfig.class);
-\t\t\tif (parsed == null) {
-\t\t\t\tparsed = new SplashConfig();
-\t\t\t}
-\t\t\tif (parsed.splashes == null) {
-\t\t\t\tparsed.splashes = new ArrayList<>();
-\t\t\t}
-\t\t\treturn parsed;
-\t\t} catch (IOException | RuntimeException exception) {
-\t\t\tLOGGER.log(Level.WARNING, "Failed to load splash config from " + path, exception);
-\t\t\treturn new SplashConfig();
-\t\t}
-\t}
+	/**
+	 * Parse the schema without touching the file system, so resource packs can
+	 * reuse it. This never validates or logs, because packs are re-read
+	 * periodically and one broken pack must not keep filling the log.
+	 */
+	static SplashConfig parse(String json, Gson gson) {
+		SplashConfig parsed = gson.fromJson(json, SplashConfig.class);
+		if (parsed == null) {
+			parsed = new SplashConfig();
+		}
+		if (parsed.splashes == null) {
+			parsed.splashes = new ArrayList<>();
+		}
+		return parsed;
+	}
+
+	static SplashConfig load(Path path, Gson gson) {
+		try {
+			if (path.getParent() != null) {
+				Files.createDirectories(path.getParent());
+			}
+			if (!Files.exists(path)) {
+				Files.write(path, DEFAULT_JSON.getBytes(StandardCharsets.UTF_8));
+				LOGGER.info("Created default splash config at " + path);
+			}
+			String json = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+			SplashConfig parsed = parse(json, gson);
+			validate(parsed);
+			return parsed;
+		} catch (IOException | RuntimeException exception) {
+			LOGGER.log(Level.WARNING, "Failed to load splash config from " + path, exception);
+			return new SplashConfig();
+		}
+	}
+
+	/**
+	 * Report every entry that cannot work as written. Misconfiguration used to
+	 * fail silently, which made a broken config impossible to debug: an
+	 * unparseable colour quietly fell back to yellow and an unparseable date
+	 * quietly never matched.
+	 */
+	private static void validate(SplashConfig config) {
+		List<SplashEntry> entries = config.splashes;
+		for (int index = 0; index < entries.size(); index++) {
+			SplashEntry entry = entries.get(index);
+			if (entry == null) {
+				LOGGER.warning("splash #" + (index + 1) + " is null and will be ignored");
+				continue;
+			}
+			if (entry.isBlank()) {
+				LOGGER.warning("splash #" + (index + 1) + " has no text and will be ignored");
+				continue;
+			}
+			String where = "splash #" + (index + 1) + " ('" + entry.text + "')";
+			if (entry.weight <= 0) {
+				LOGGER.warning(where + " has weight " + entry.weight + "; using 1 instead");
+			}
+			if (entry.color != null && !entry.color.isEmpty() && entry.colorSpec() == null) {
+				LOGGER.warning(where + " has an unrecognised color '" + entry.color
+					+ "'; using the vanilla yellow");
+			}
+			SplashEntry.Conditions conditions = entry.conditions;
+			if (conditions == null) {
+				continue;
+			}
+			String problem = conditions.timeProblem();
+			if (problem != null) {
+				LOGGER.warning(where + " has an invalid time '" + conditions.time + "': " + problem
+					+ "; the condition is ignored");
+			}
+			problem = conditions.dateProblem();
+			if (problem != null) {
+				LOGGER.warning(where + " has an invalid date '" + conditions.date + "': " + problem
+					+ "; the splash will never be shown");
+			}
+			if (conditions.chance != null && (conditions.chance < 0.0D || conditions.chance > 1.0D)) {
+				LOGGER.warning(where + " has a chance outside 0.0-1.0: " + conditions.chance);
+			}
+		}
+	}
 }
 '''
+
+SOURCES["SplashConfig.java"] = SOURCES["SplashConfig.java"].replace(
+    "%%DEFAULT_CONFIG%%", java_string_literal(DEFAULT_CONFIG))
 
 SOURCES["SplashRegistry.java"] = '''package dev.arrbrants.customsplash;
 
@@ -803,14 +953,22 @@ public final class SplashRegistry {
 \t * Pick one entry using relative weights. Visible for testing.
 \t */
 \tstatic SplashEntry chooseWeighted(List<SplashEntry> pool, Random random) {
-\t\tint total = 0;
+\t\tlong total = 0L;
 \t\tfor (SplashEntry entry : pool) {
 \t\t\ttotal += entry.weightOrDefault();
 \t\t}
-\t\tint roll = random.nextInt(total);
+\t\tif (total <= 0L) {
+\t\t\t// Only reachable for a hand-built pool; never let the picker throw.
+\t\t\treturn pool.get(random.nextInt(pool.size()));
+\t\t}
+\t\t// Keep the int draw while it fits, so seeded results stay unchanged. Absurd
+\t\t// weights used to overflow this sum into a negative bound and crash.
+\t\tlong roll = total <= Integer.MAX_VALUE
+\t\t\t\t? random.nextInt((int) total)
+\t\t\t\t: Math.floorMod(random.nextLong(), total);
 \t\tfor (SplashEntry entry : pool) {
 \t\t\troll -= entry.weightOrDefault();
-\t\t\tif (roll < 0) {
+\t\t\tif (roll < 0L) {
 \t\t\t\treturn entry;
 \t\t\t}
 \t\t}
@@ -918,107 +1076,137 @@ import java.util.zip.ZipFile;
 /**
  * Reads splash texts from enabled resource packs.
  *
- * <p>A pack may provide {@code assets/custom-splash/splashes.txt}; every
- * non-empty line that does not start with {@code #} becomes a splash text.</p>
+ * <p>A pack may provide {@code assets/custom-splash/splashes.txt}, where every
+ * non-empty line that does not start with {@code #} becomes a splash text, or
+ * {@code assets/custom-splash/splashes.json}, which uses the same schema as the
+ * config file and therefore supports weights, colours and conditions too. Both
+ * files may be present; their entries are combined.</p>
  */
 public final class SplashResourcePack {
-\tprivate static final Logger LOGGER = Logger.getLogger("custom-splash");
-\tprivate static final Gson GSON = new Gson();
-\tprivate static final String PACK_FILE = "assets/custom-splash/splashes.txt";
+	private static final Logger LOGGER = Logger.getLogger("custom-splash");
+	private static final Gson GSON = new Gson();
+	private static final String PACK_TEXT_FILE = "assets/custom-splash/splashes.txt";
+	private static final String PACK_JSON_FILE = "assets/custom-splash/splashes.json";
 
-\tprivate SplashResourcePack() {
-\t}
+	private SplashResourcePack() {
+	}
 
-\tstatic List<SplashEntry> load() {
-\t\tPath gameDir = SplashPlatform.get().getGameDir();
-\t\tif (gameDir == null) {
-\t\t\treturn Collections.emptyList();
-\t\t}
-\t\tPath packsDir = gameDir.resolve("resourcepacks");
-\t\tif (!Files.isDirectory(packsDir)) {
-\t\t\treturn Collections.emptyList();
-\t\t}
-\t\tList<SplashEntry> entries = new ArrayList<>();
-\t\tfor (String name : enabledPacks(gameDir)) {
-\t\t\tfor (String line : readLines(packsDir.resolve(name))) {
-\t\t\t\tString text = line.trim();
-\t\t\t\tif (!text.isEmpty() && !text.startsWith("#")) {
-\t\t\t\t\tSplashEntry entry = new SplashEntry();
-\t\t\t\t\tentry.text = text;
-\t\t\t\t\tentries.add(entry);
-\t\t\t\t}
-\t\t\t}
-\t\t}
-\t\treturn entries;
-\t}
+	static List<SplashEntry> load() {
+		Path gameDir = SplashPlatform.get().getGameDir();
+		if (gameDir == null) {
+			return Collections.emptyList();
+		}
+		Path packsDir = gameDir.resolve("resourcepacks");
+		if (!Files.isDirectory(packsDir)) {
+			return Collections.emptyList();
+		}
+		List<SplashEntry> entries = new ArrayList<>();
+		for (String name : enabledPacks(gameDir)) {
+			Path pack = packsDir.resolve(name);
+			entries.addAll(readTextEntries(pack));
+			entries.addAll(readJsonEntries(pack));
+		}
+		return entries;
+	}
 
-\tprivate static List<String> enabledPacks(Path gameDir) {
-\t\tPath options = gameDir.resolve("options.txt");
-\t\ttry {
-\t\t\tfor (String line : Files.readAllLines(options, StandardCharsets.UTF_8)) {
-\t\t\t\tif (line.startsWith("resourcePacks:")) {
-\t\t\t\t\tString[] names = GSON.fromJson(line.substring("resourcePacks:".length()).trim(), String[].class);
-\t\t\t\t\tif (names == null) {
-\t\t\t\t\t\treturn Collections.emptyList();
-\t\t\t\t\t}
-\t\t\t\t\tList<String> result = new ArrayList<>();
-\t\t\t\t\tfor (String name : names) {
-\t\t\t\t\t\tif (name == null || name.isEmpty()) {
-\t\t\t\t\t\t\tcontinue;
-\t\t\t\t\t\t}
-\t\t\t\t\t\tresult.add(name.startsWith("file/") ? name.substring("file/".length()) : name);
-\t\t\t\t\t}
-\t\t\t\t\treturn result;
-\t\t\t\t}
-\t\t\t}
-\t\t} catch (IOException | RuntimeException exception) {
-\t\t\tLOGGER.log(Level.FINE, "Could not read enabled resource packs", exception);
-\t\t}
-\t\treturn Collections.emptyList();
-\t}
+	private static List<SplashEntry> readTextEntries(Path pack) {
+		byte[] data = read(pack, PACK_TEXT_FILE);
+		if (data == null) {
+			return Collections.emptyList();
+		}
+		List<SplashEntry> entries = new ArrayList<>();
+		for (String line : splitLines(data)) {
+			String text = line.trim();
+			if (!text.isEmpty() && !text.startsWith("#")) {
+				SplashEntry entry = new SplashEntry();
+				entry.text = text;
+				entries.add(entry);
+			}
+		}
+		return entries;
+	}
 
-\tprivate static List<String> readLines(Path pack) {
-\t\ttry {
-\t\t\tif (Files.isDirectory(pack)) {
-\t\t\t\tPath file = pack.resolve(PACK_FILE);
-\t\t\t\treturn Files.isRegularFile(file)
-\t\t\t\t\t\t? Files.readAllLines(file, StandardCharsets.UTF_8)
-\t\t\t\t\t\t: Collections.emptyList();
-\t\t\t}
-\t\t\tif (Files.isRegularFile(pack)) {
-\t\t\t\ttry (ZipFile zip = new ZipFile(pack.toFile())) {
-\t\t\t\t\tZipEntry entry = zip.getEntry(PACK_FILE);
-\t\t\t\t\tif (entry == null) {
-\t\t\t\t\t\treturn Collections.emptyList();
-\t\t\t\t\t}
-\t\t\t\t\ttry (InputStream stream = zip.getInputStream(entry)) {
-\t\t\t\t\t\treturn splitLines(readAll(stream));
-\t\t\t\t\t}
-\t\t\t\t}
-\t\t\t}
-\t\t} catch (IOException | RuntimeException exception) {
-\t\t\tLOGGER.log(Level.FINE, "Could not read resource pack " + pack, exception);
-\t\t}
-\t\treturn Collections.emptyList();
-\t}
+	private static List<SplashEntry> readJsonEntries(Path pack) {
+		byte[] data = read(pack, PACK_JSON_FILE);
+		if (data == null) {
+			return Collections.emptyList();
+		}
+		try {
+			return SplashConfig.parse(new String(data, StandardCharsets.UTF_8), GSON).splashes;
+		} catch (RuntimeException exception) {
+			LOGGER.log(Level.WARNING, "Could not parse " + PACK_JSON_FILE + " in " + pack, exception);
+			return Collections.emptyList();
+		}
+	}
 
-\tprivate static List<String> splitLines(byte[] data) {
-\t\tList<String> lines = new ArrayList<>();
-\t\tfor (String line : new String(data, StandardCharsets.UTF_8).split("\\\\r?\\\\n")) {
-\t\t\tlines.add(line);
-\t\t}
-\t\treturn lines;
-\t}
+	private static List<String> enabledPacks(Path gameDir) {
+		Path options = gameDir.resolve("options.txt");
+		try {
+			for (String line : Files.readAllLines(options, StandardCharsets.UTF_8)) {
+				if (line.startsWith("resourcePacks:")) {
+					String[] names = GSON.fromJson(line.substring("resourcePacks:".length()).trim(), String[].class);
+					if (names == null) {
+						return Collections.emptyList();
+					}
+					List<String> result = new ArrayList<>();
+					for (String name : names) {
+						if (name == null || name.isEmpty()) {
+							continue;
+						}
+						result.add(name.startsWith("file/") ? name.substring("file/".length()) : name);
+					}
+					return result;
+				}
+			}
+		} catch (IOException | RuntimeException exception) {
+			LOGGER.log(Level.FINE, "Could not read enabled resource packs", exception);
+		}
+		return Collections.emptyList();
+	}
 
-\tprivate static byte[] readAll(InputStream stream) throws IOException {
-\t\tByteArrayOutputStream buffer = new ByteArrayOutputStream();
-\t\tbyte[] chunk = new byte[8192];
-\t\tint read;
-\t\twhile ((read = stream.read(chunk)) != -1) {
-\t\t\tbuffer.write(chunk, 0, read);
-\t\t}
-\t\treturn buffer.toByteArray();
-\t}
+	/**
+	 * @return the bytes of {@code resource} inside the pack, or {@code null} when absent
+	 */
+	private static byte[] read(Path pack, String resource) {
+		try {
+			if (Files.isDirectory(pack)) {
+				Path file = pack.resolve(resource);
+				return Files.isRegularFile(file) ? Files.readAllBytes(file) : null;
+			}
+			if (Files.isRegularFile(pack)) {
+				try (ZipFile zip = new ZipFile(pack.toFile())) {
+					ZipEntry entry = zip.getEntry(resource);
+					if (entry == null) {
+						return null;
+					}
+					try (InputStream stream = zip.getInputStream(entry)) {
+						return readAll(stream);
+					}
+				}
+			}
+		} catch (IOException | RuntimeException exception) {
+			LOGGER.log(Level.FINE, "Could not read " + resource + " from " + pack, exception);
+		}
+		return null;
+	}
+
+	private static List<String> splitLines(byte[] data) {
+		List<String> lines = new ArrayList<>();
+		for (String line : new String(data, StandardCharsets.UTF_8).split("\\r?\\n")) {
+			lines.add(line);
+		}
+		return lines;
+	}
+
+	private static byte[] readAll(InputStream stream) throws IOException {
+		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+		byte[] chunk = new byte[8192];
+		int read;
+		while ((read = stream.read(chunk)) != -1) {
+			buffer.write(chunk, 0, read);
+		}
+		return buffer.toByteArray();
+	}
 }
 '''
 

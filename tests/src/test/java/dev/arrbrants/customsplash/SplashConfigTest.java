@@ -137,4 +137,28 @@ class SplashConfigTest {
 		assertEquals(-1, entry.rgb());
 		assertFalse(entry.isBlank());
 	}
+
+	@Test
+	@DisplayName("comments are allowed, so the shipped config documents itself")
+	void commentsAreAllowed() {
+		write("{\n// a line comment\n/* and a block comment */\n\"splashes\":[{\"text\":\"Hi\"}]}");
+
+		assertEquals("Hi", onlyEntry().text);
+	}
+
+	@Test
+	@DisplayName("the schema can also be parsed without touching the file system")
+	void parsesWithoutFileSystem() {
+		SplashConfig parsed = SplashConfig.parse("{\"splashes\":[{\"text\":\"Packed\",\"weight\":4}]}", GSON);
+
+		assertEquals(1, parsed.splashes.size());
+		assertEquals("Packed", parsed.splashes.get(0).text);
+		assertEquals(4, parsed.splashes.get(0).weightOrDefault());
+	}
+
+	@Test
+	@DisplayName("parsing normalises a missing splashes array")
+	void parseNormalisesMissingList() {
+		assertTrue(SplashConfig.parse("{}", GSON).splashes.isEmpty());
+	}
 }
