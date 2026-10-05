@@ -164,6 +164,18 @@ jobs:
           fabric-api: none
           dummy-assets: true
           cache-mc: github
+      # The client writes its crash report and log into run/ and the runner is
+      # thrown away, which makes a failure like the 1.16.5 loading error screen
+      # impossible to diagnose after the fact. Keep them.
+      - name: upload what the client wrote
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-${{ strategy.job-index }}-${{ matrix.mc }}-${{ matrix.modloader }}
+          path: |
+            run/crash-reports/
+            run/logs/latest.log
+          if-no-files-found: ignore
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
