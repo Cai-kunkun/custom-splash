@@ -20,6 +20,7 @@ supports, so three things have to hold at once:
 Reads only the generated projects, so it needs no build and no network.
 """
 
+import fnmatch
 import json
 import re
 import sys
@@ -40,6 +41,28 @@ LOADERS = (
 
 # Taken from the message NeoForge prints when it rejects a mod file.
 MOD_ID_PATTERN = re.compile(r"^(?=.{2,64}$)[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$")
+
+WORKFLOW = ROOT / ".github" / "workflows" / "build.yml"
+SMOKE_ROW = re.compile(
+    r"^\s*-\s*\{\s*mc:\s*'([^']+)',\s*modloader:\s*'([^']+)',.*?jar:\s*'([^']+)'")
+JAR_FLAVOUR = {"fabric": "mc", "forge": "forge-mc", "neoforge": "neoforge-mc"}
+
+
+def smoke_rows():
+    """The (release, loader, jar glob) triples the smoke matrix boots."""
+    for line in WORKFLOW.read_text().splitlines():
+        match = SMOKE_ROW.match(line)
+        if match:
+            yield match.group(1), match.group(2), match.group(3)
+
+
+def mod_version(project: str):
+    """The mod version a project stamps into its jar name."""
+    text = (ROOT / "versions" / project / "gradle.properties").read_text()
+    for line in text.splitlines():
+        if line.startswith("mod_version="):
+            return line.split("=", 1)[1].strip()
+    return None
 
 
 def key(version: str) -> tuple:
@@ -83,6 +106,37 @@ def covers(span, release: str) -> bool:
     low, high, inclusive = span
     value = key(release)
     return low <= value and (value <= high if inclusive else value < high)
+
+
+def check_smoke_matrix() -> int:
+    """Each smoke row has to stage exactly one jar, on a release that jar claims.
+
+    A row for a release the jar does not claim can only ever fail, and because the
+    release job depends on smoke, one such row blocks publishing for good. The
+    1.20-1.20.4 jar was booted on 1.20.6 on purpose while its range still reached
+    1.21; once the range stopped at 1.20.6 that row had to go.
+    """
+    failures = 0
+    jars = []
+    for loader, targets_file, _versions_file in LOADERS:
+        for project, compile_version, covered in read_targets(targets_file):
+            jars.append(("customsplash-%s-%s+%smc%s.jar" % (
+                project, mod_version(project), JAR_FLAVOUR[loader], compile_version),
+                project, covered))
+    rows = 0
+    for release, loader, pattern in smoke_rows():
+        rows += 1
+        matches = [entry for entry in jars if fnmatch.fnmatch(entry[0], pattern)]
+        if len(matches) != 1:
+            print(f"smoke {release} {loader}: {pattern} matches {len(matches)} jars, expected 1")
+            failures += 1
+            continue
+        _name, project, covered = matches[0]
+        if release not in covered:
+            print(f"smoke {release} {loader}: boots {project}, which does not claim {release}")
+            failures += 1
+    print(f"smoke: {rows} rows, {failures} problem(s)")
+    return failures
 
 
 def main() -> None:
@@ -131,10 +185,12 @@ def main() -> None:
         for release, names in sorted(overlaps.items(), key=lambda item: key(item[0])):
             print(f"  {release} is claimed by {', '.join(names)}")
 
+    failures += check_smoke_matrix()
     if failures:
         raise SystemExit(f"\n{failures} metadata problem(s)")
     print("\nEvery mod id passes the strictest loader rule, every supported release is claimed "
-          "by exactly one jar, and no jar declares a release from another line.")
+          "by exactly one jar, no jar declares a release from another line, and every smoke "
+          "row boots a release its jar claims.")
 
 
 if __name__ == "__main__":
