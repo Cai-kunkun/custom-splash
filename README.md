@@ -35,11 +35,15 @@ to resolve the mixin to the same name. A green build only proves it compiles.
   1.21.11, and SplashRenderer is `net/minecraft/class_8519` from 1.20 through
   1.21.11, so those releases can share a jar.
 - **Forge** up to 1.20.4 ships a mixin refmap, so a line must resolve getSplash to
-  the same SRG name. The same name also has to hold at the far end of the line:
-  the MCP era uses `net/minecraft/client/util/Splashes#func_215276_a`, and from
-  1.17 on it is `net/minecraft/client/resources/SplashManager#m_118867_`, which
-  the 1.17.1, 1.18 and 1.19 refmaps all agree on, so those three Minecraft lines
-  share one jar. Note the 1.16 spelling does not survive into 1.17.
+  the same SRG name, and the same name has to hold at the far end of the line.
+  Two independent sources agree at every boundary: the refmap baked into each
+  built jar, and the `mcp_config` mappings. The MCP era uses
+  `net/minecraft/client/util/Splashes#func_215276_a` (1.16.1 refmap and 1.16.5
+  mappings), and from 1.17 on it is
+  `net/minecraft/client/resources/SplashManager#m_118867_` (1.17.1, 1.18 and 1.19
+  refmaps; 1.17.1, 1.18.2 and 1.19.4 mappings), so those three Minecraft lines
+  share one jar. The 1.16 spelling does not survive into 1.17. The 1.20 line
+  resolves to `SplashManager#m_280369_` in 1.20, 1.20.1 and 1.20.4.
 - **NeoForge** and **Forge 1.20.6** carry no refmap at all, so their mixins resolve
   by literal name and the grouping is limited only by the build era.
 
@@ -355,6 +359,7 @@ manual smoke test before a release.
 - `scripts/generate_neoforge_projects.py` — scaffolds the NeoForge projects
 - `src/main/resources/assets/custom-splash/icon.png` — the canonical mod icon, copied into every version project by the generators
 - `scripts/update_yarn_mappings.py` — refreshes the Yarn v2 mappings
+- `scripts/check_forge_lines.py` — resolves the SRG name each Forge line's mixin looks for, from the mappings
 - `scripts/verify_release_artifacts.py` — validates a complete release set
 - `tests/` — JUnit 5 unit tests for the shared sources
 - `supported-versions.txt` — the Fabric version list

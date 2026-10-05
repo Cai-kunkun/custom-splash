@@ -19,10 +19,12 @@
 1.16.1-forge	1.16.1	1.16.1 1.16.2 1.16.3 1.16.4 1.16.5
 
 # ForgeGradle 5, Java 16. All three Minecraft lines resolve getSplash to
-# net/minecraft/client/resources/SplashManager#m_118867_ -- verified from the
-# refmaps of the 1.17.1, 1.18 and 1.19 builds, which is three independent
-# confirmations -- so one jar covers them all. Compiling at Java 16 keeps the
-# class files loadable on the Java 17 releases in the line.
+# net/minecraft/client/resources/SplashManager#m_118867_, so one jar covers them
+# all. Two independent sources agree at both ends: the refmaps of the 1.17.1,
+# 1.18 and 1.19 builds, and the mcp_config mappings for 1.17.1, 1.18.2 and 1.19.4.
+# Compiling at Java 16 keeps the class files loadable on the Java 17 releases in
+# the line. Note this era returns a plain String; SplashRenderer only arrives in
+# 1.20.
 1.17.1-forge	1.17.1	1.17.1 1.18 1.18.1 1.18.2 1.19 1.19.1 1.19.2 1.19.3 1.19.4
 
 # ForgeGradle 6, Gradle 8.13, Java 17. getSplash is m_280369_ in 1.20, 1.20.1 and
