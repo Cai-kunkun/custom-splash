@@ -54,6 +54,14 @@ to resolve the mixin to the same name. A green build only proves it compiles.
 - **NeoForge** and **Forge 1.20.6** carry no refmap at all, so their mixins resolve
   by literal name and the grouping is limited only by the build era.
 
+Forge additionally loads a mod's resources as a resource pack and will not finish
+loading without pack metadata: 1.20.4 stops with `Missing metadata in pack
+mod:customsplash`, and older Forge shows a loading error screen over the
+`Couldn't get pack info for ... 'pack.mcmeta'` warning. Every Forge jar therefore
+ships a `pack.mcmeta` whose `pack_format` is the one of the release it compiles
+against. Fabric and NeoForge do not need it, which is how the jars went without
+one for so long.
+
 The [Fabric version list](supported-versions.txt) covers every stable release from
 **1.14 through 26.3** (48 versions, including all patch releases in between).
 Snapshots and pre-releases are not included.
@@ -113,21 +121,19 @@ The NeoForge ports use ModDevGradle (Gradle 9.6.0) on Java 21, with a Java 25
 toolchain for the 26.x line; 1.20.5 uses the legacy NeoGradle plugin instead,
 because ModDevGradle 2.x needs the newer NeoForge metadata that 20.5 predates.
 
-Every project therefore uses one of exactly three Gradle releases, one per Gradle
-major line, and each is pinned by the oldest build plugin on that line rather
-than by drift:
+Every project therefore uses one of exactly four Gradle releases, and each is
+pinned by the oldest build plugin that needs it rather than by drift:
 
 | Gradle | Projects | Pinned by |
 | --- | --- | --- |
-| 7.6.4 | Forge 1.16.1–1.19.4 (4) | ForgeGradle 5, which does not support Gradle 8 |
+| 7.6.4 | Forge 1.16.1–1.19.4 (2) | ForgeGradle 5, which does not support Gradle 8 |
 | 8.8 | Fabric 1.14–1.20 (3) | Fabric Loom 1.6, which fails on 8.13 |
 | 8.13 | Forge 1.20–1.20.4 (1) | ForgeGradle 6 |
 | 9.6.0 | Forge 1.20.6, NeoForge, Fabric 26.x (8) | ForgeGradle 7, ModDevGradle and Loom 1.17 |
 
-Four releases remain and each is pinned by a build plugin rather than left to
-drift. The remaining differences cannot be collapsed without migrating a plugin:
-ForgeGradle 5 does not run on Gradle 8, Loom 1.6 fails on 8.13, and the Fabric
-26.x line needs a newer Loom than the older Fabric releases.
+Those four cannot be collapsed without migrating a plugin: ForgeGradle 5 does not
+run on Gradle 8, Loom 1.6 fails on 8.13, and the Fabric 26.x line needs a newer
+Loom than the older Fabric releases. Two of the four therefore sit on Gradle 8.
 
 Build every version, check each JAR, and collect them in `build/releases`:
 
@@ -368,7 +374,7 @@ release, and a row uses the nearest release that does have an asset.
 - `src/main/resources/assets/customsplash/icon.png` — the canonical mod icon, copied into every version project by the generators
 - `scripts/update_yarn_mappings.py` — refreshes the Yarn v2 mappings
 - `scripts/check_forge_lines.py` — resolves the SRG name each Forge line's mixin looks for, from the mappings
-- `scripts/check_target_coverage.py` — checks that every supported release is claimed by a jar and every line is fully declared
+- `scripts/check_target_coverage.py` — checks the declared metadata: the mod id against the strictest loader rule, every line's range, and that each smoke row boots a release its jar claims
 - `scripts/verify_release_artifacts.py` — validates a complete release set
 - `tests/` — JUnit 5 unit tests for the shared sources
 - `supported-versions.txt` — the Fabric version list
