@@ -59,6 +59,20 @@ jobs:
         run: ./gradlew :tests:test --no-daemon
       - name: build and collect all versions
         run: ./gradlew verifyReleases -PbuildShard=${{ matrix.shard }} -PbuildShardCount=9
+      - name: report mixin refmap targets
+        run: |
+          # The refmap is the exact name Mixin looks for at runtime, so two
+          # versions can only share a Forge jar when these mappings match.
+          # NeoForge and Forge 1.20.6 ship no refmap at all, which means those
+          # mixins resolve by literal name and are already version independent.
+          for jar in build/releases/*.jar; do
+            refmap=$(unzip -p "$jar" customsplash.refmap.json 2>/dev/null || true)
+            if [ -n "$refmap" ]; then
+              printf '%s\n' "$(basename "$jar") -> $(printf '%s' "$refmap" | python3 -c 'import json,sys;print(json.dumps(json.load(sys.stdin).get("mappings",{}),sort_keys=True))' 2>/dev/null || echo unreadable)"
+            else
+              printf '%s\n' "$(basename "$jar") -> no refmap (literal names)"
+            fi
+          done | sort
       - name: capture build artifacts
         uses: actions/upload-artifact@v7
         with:
