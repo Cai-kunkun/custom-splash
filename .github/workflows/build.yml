@@ -118,9 +118,10 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          matches=(${{ matrix.jar }})
+          matches=(build/releases/${{ matrix.jar }})
           if [ "${#matches[@]}" -ne 1 ]; then
-            echo "::error::expected one jar matching ${{ matrix.jar }}, found ${#matches[@]}"
+            echo "::error::expected one jar matching build/releases/${{ matrix.jar }}, found ${#matches[@]}"
+            ls -l build/releases || true
             exit 1
           fi
           mkdir -p run/mods
