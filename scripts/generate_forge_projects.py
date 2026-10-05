@@ -548,6 +548,8 @@ def main() -> None:
 				raise SystemExit(f"no Forge spec for {minecraft}")
 			if minecraft not in fabric_versions:
 				raise SystemExit(f"{minecraft} is not a Fabric version project")
+		if compile_version not in PACK_FORMAT:
+			raise SystemExit(f"no resource pack format for {compile_version}")
 
 		forge_version, java_version = FORGE_SPECS[compile_version][:2]
 		next_first = targets[index + 1][2][0] if index + 1 < len(targets) else None

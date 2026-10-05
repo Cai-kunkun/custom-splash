@@ -115,12 +115,10 @@ jobs:
           - { mc: '1.19.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'customsplash-1.17.1-forge-*+forge-mc*.jar' }
           - { mc: '1.20.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'customsplash-1.20-forge-*+forge-mc*.jar' }
           - { mc: '1.20.6',  modloader: 'forge',    runtime: 'lexforge', java: '21', jar: 'customsplash-1.20.6-forge-*+forge-mc*.jar' }
-          # The 1.20-1.20.4 jar declares versionRange "[1.20,1.21)", which also
-          # covers 1.20.6, but 1.20.6 ships no refmap because Forge resolves
-          # official names there while the 1.20 line maps getSplash to m_280369_.
-          # Boot that jar on 1.20.6 rather than assume the overlap is harmless; if
-          # it fails, the 1.20 line's range has to stop below 1.20.6.
-          - { mc: '1.20.6',  modloader: 'forge',    runtime: 'lexforge', java: '21', jar: 'customsplash-1.20-forge-*+forge-mc*.jar' }
+          # No row boots the 1.20 jar on 1.20.6 any more. That combination was
+          # tested while the 1.20 line still declared "[1.20,1.21)"; it failed,
+          # the generator now stops the range at 1.20.6, and a row for a
+          # combination the jar no longer claims would just keep this job red.
           # NeoForge, one row per line.
           - { mc: '1.21.4',  modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'customsplash-1.21-neoforge-*+neoforge-mc*.jar' }
           - { mc: '1.21.11', modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'customsplash-1.21.5-neoforge-*+neoforge-mc*.jar' }
