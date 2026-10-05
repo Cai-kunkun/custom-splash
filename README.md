@@ -344,9 +344,10 @@ first. The Fabric rows cover both ends of each line, and so does the merged
 rows map to MC-Runtime-Test's `lexforge` build and NeoForge rows to its
 `neoforge` build.
 
-MC-Runtime-Test supports 1.16.5 and newer, so the 1.14–1.15.2 releases and the
-1.20.5 single-release NeoForge line are outside the matrix and still need a
-manual smoke test before a release.
+MC-Runtime-Test publishes one asset per Minecraft release, so a few releases on
+these lines cannot be booted at all: 1.14–1.16.4, 1.17, 1.18, 1.18.1, 1.20, the
+1.20.5 NeoForge line and 26.3. Those still need a manual smoke test before a
+release, and a row uses the nearest release that does have an asset.
 
 ## Repository layout
 
@@ -360,6 +361,7 @@ manual smoke test before a release.
 - `src/main/resources/assets/custom-splash/icon.png` — the canonical mod icon, copied into every version project by the generators
 - `scripts/update_yarn_mappings.py` — refreshes the Yarn v2 mappings
 - `scripts/check_forge_lines.py` — resolves the SRG name each Forge line's mixin looks for, from the mappings
+- `scripts/check_target_coverage.py` — checks that every supported release is claimed by a jar and every line is fully declared
 - `scripts/verify_release_artifacts.py` — validates a complete release set
 - `tests/` — JUnit 5 unit tests for the shared sources
 - `supported-versions.txt` — the Fabric version list

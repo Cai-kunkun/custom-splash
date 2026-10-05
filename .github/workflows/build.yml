@@ -92,15 +92,18 @@ jobs:
         # shows up first, and the fabric rows also cover the oldest so both ends of
         # a line are checked. This gates the release below.
         #
-        # MC-Runtime-Test supports 1.16.5 and newer, so the 1.14-1.15.2 releases
-        # are not listed and still need a manual smoke test before releasing.
+        # MC-Runtime-Test publishes one asset per Minecraft release, and a few
+        # releases on these lines have none: 1.14-1.16.4, 1.17, 1.18, 1.18.1,
+        # 1.20, the 1.20.5 NeoForge line and 26.3. Those still need a manual smoke
+        # test, so a row uses the nearest release that does have an asset (1.20.1
+        # rather than 1.20, 26.2 rather than 26.3).
         include:
           # Fabric. The jar globs carry the loader flavour ("+mc" rather than
           # "+forge-mc"), because a bare "custom-splash-1.20-*" would also match
           # the 1.20-forge jar and the stage step would refuse to pick one.
           - { mc: '1.16.5',  modloader: 'fabric',   runtime: 'fabric',   java: '8',  jar: 'custom-splash-1.14.4-*+mc*.jar' }
           - { mc: '1.19.4',  modloader: 'fabric',   runtime: 'fabric',   java: '17', jar: 'custom-splash-1.14.4-*+mc*.jar' }
-          - { mc: '1.20',    modloader: 'fabric',   runtime: 'fabric',   java: '17', jar: 'custom-splash-1.20-*+mc*.jar' }
+          - { mc: '1.20.1',  modloader: 'fabric',   runtime: 'fabric',   java: '17', jar: 'custom-splash-1.20-*+mc*.jar' }
           - { mc: '1.21.11', modloader: 'fabric',   runtime: 'fabric',   java: '21', jar: 'custom-splash-1.20-*+mc*.jar' }
           - { mc: '26.1.2',  modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'custom-splash-26.1-*+mc*.jar' }
           - { mc: '26.2',    modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'custom-splash-26.2-*+mc*.jar' }
@@ -121,7 +124,7 @@ jobs:
           # NeoForge, one row per line.
           - { mc: '1.21.4',  modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'custom-splash-1.21-neoforge-*+neoforge-mc*.jar' }
           - { mc: '1.21.11', modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'custom-splash-1.21.5-neoforge-*+neoforge-mc*.jar' }
-          - { mc: '26.3',    modloader: 'neoforge', runtime: 'neoforge', java: '25', jar: 'custom-splash-26.1-neoforge-*+neoforge-mc*.jar' }
+          - { mc: '26.2',    modloader: 'neoforge', runtime: 'neoforge', java: '25', jar: 'custom-splash-26.1-neoforge-*+neoforge-mc*.jar' }
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
