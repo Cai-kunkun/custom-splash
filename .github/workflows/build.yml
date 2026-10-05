@@ -104,10 +104,12 @@ jobs:
           - { mc: '1.21.11', modloader: 'fabric',   runtime: 'fabric',   java: '21', jar: 'custom-splash-1.20-*+mc*.jar' }
           - { mc: '26.1.2',  modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'custom-splash-26.1-*+mc*.jar' }
           - { mc: '26.2',    modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'custom-splash-26.2-*+mc*.jar' }
-          # Forge, one row per line; the newest release carries the line's claim.
+          # Forge, one row per line; the merged 1.17.1-1.19.4 line gets both ends
+          # plus the popular 1.18.2 in between.
           - { mc: '1.16.5',  modloader: 'forge',    runtime: 'lexforge', java: '8',  jar: 'custom-splash-1.16.1-forge-*+forge-mc*.jar' }
-          - { mc: '1.18.2',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.18-forge-*+forge-mc*.jar' }
-          - { mc: '1.19.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.19-forge-*+forge-mc*.jar' }
+          - { mc: '1.17.1',  modloader: 'forge',    runtime: 'lexforge', java: '16', jar: 'custom-splash-1.17.1-forge-*+forge-mc*.jar' }
+          - { mc: '1.18.2',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.17.1-forge-*+forge-mc*.jar' }
+          - { mc: '1.19.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.17.1-forge-*+forge-mc*.jar' }
           - { mc: '1.20.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.20-forge-*+forge-mc*.jar' }
           - { mc: '1.20.6',  modloader: 'forge',    runtime: 'lexforge', java: '21', jar: 'custom-splash-1.20.6-forge-*+forge-mc*.jar' }
           # NeoForge, one row per line.

@@ -8,20 +8,27 @@
 # Java level stay the ones that era needs. Project names carry the loader suffix,
 # matching the versions/<mc>-forge directories.
 #
-# Membership is a runtime claim. A Forge jar up to 1.20.4 ships a mixin refmap,
-# so every version in a line must resolve getSplash to the same SRG name; the CI
-# "report mixin refmap targets" step prints the name each jar bakes in. From
-# 1.20.6 on there is no refmap at all, so the mixin resolves by literal name and
-# the grouping is limited only by the build era.
+# Membership is a runtime claim: a Forge jar up to 1.20.4 ships a mixin refmap,
+# so every release on a line has to resolve getSplash to the same SRG name. CI's
+# "report mixin refmap targets" step prints the name each jar bakes in, and the
+# mcp_config mappings give the same answer for a release inside a line.
 
-# ForgeGradle 5, Gradle 7.6.4. Java 8.
+# ForgeGradle 5, Gradle 7.6.4, Java 8. The MCP-era splash holder is
+# net/minecraft/client/util/Splashes with func_215276_a, which the 1.16.1 refmap
+# and the 1.16.5 mappings agree on.
 1.16.1-forge	1.16.1	1.16.1 1.16.2 1.16.3 1.16.4 1.16.5
-# ForgeGradle 5, Java 16.
-1.17.1-forge	1.17.1	1.17.1
-# ForgeGradle 5, Java 17.
-1.18-forge	1.18	1.18 1.18.1 1.18.2
-1.19-forge	1.19	1.19 1.19.1 1.19.2 1.19.3 1.19.4
-# ForgeGradle 6, Gradle 8.13, Java 17.
+
+# ForgeGradle 5, Java 16. All three Minecraft lines resolve getSplash to
+# net/minecraft/client/resources/SplashManager#m_118867_ -- verified from the
+# refmaps of the 1.17.1, 1.18 and 1.19 builds, which is three independent
+# confirmations -- so one jar covers them all. Compiling at Java 16 keeps the
+# class files loadable on the Java 17 releases in the line.
+1.17.1-forge	1.17.1	1.17.1 1.18 1.18.1 1.18.2 1.19 1.19.1 1.19.2 1.19.3 1.19.4
+
+# ForgeGradle 6, Gradle 8.13, Java 17. getSplash is m_280369_ in 1.20, 1.20.1 and
+# 1.20.4, so both ends and the compile release agree.
 1.20-forge	1.20	1.20 1.20.1 1.20.2 1.20.3 1.20.4
-# ForgeGradle 7, Gradle 9.6.0, Java 21. No refmap, so no SRG constraint.
+
+# ForgeGradle 7, Gradle 9.6.0, Java 21. No refmap at all, so the mixin resolves by
+# literal name and the build era is the only constraint.
 1.20.6-forge	1.20.6	1.20.6

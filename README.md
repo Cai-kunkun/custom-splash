@@ -10,7 +10,7 @@ does nothing there.
 ## Supported versions
 
 Every loader is built once per release line rather than once per release, so the
-86 supported releases ship as **16 jars**. Each loader has a targets file mapping
+86 supported releases ship as **14 jars**. Each loader has a targets file mapping
 a project to the whole range its single jar covers, all in the same format:
 
 ```
@@ -20,7 +20,7 @@ a project to the whole range its single jar covers, all in the same format:
 | Targets file | Covers | Targets |
 | --- | --- | --- |
 | [fabric-targets.txt](fabric-targets.txt) | 1.14 – 26.3 | 6 |
-| [forge-targets.txt](forge-targets.txt) | 1.16.1 – 1.20.6 | 6 |
+| [forge-targets.txt](forge-targets.txt) | 1.16.1 – 1.20.6 | 4 |
 | [neoforge-targets.txt](neoforge-targets.txt) | 1.20.5 – 26.3 | 4 |
 
 Adding a release means adding it to the matching `supported-*-versions.txt` list
@@ -35,8 +35,11 @@ to resolve the mixin to the same name. A green build only proves it compiles.
   1.21.11, and SplashRenderer is `net/minecraft/class_8519` from 1.20 through
   1.21.11, so those releases can share a jar.
 - **Forge** up to 1.20.4 ships a mixin refmap, so a line must resolve getSplash to
-  the same SRG name. CI's `report mixin refmap targets` step prints the name each
-  jar bakes in.
+  the same SRG name. The same name also has to hold at the far end of the line:
+  the MCP era uses `net/minecraft/client/util/Splashes#func_215276_a`, and from
+  1.17 on it is `net/minecraft/client/resources/SplashManager#m_118867_`, which
+  the 1.17.1, 1.18 and 1.19 refmaps all agree on, so those three Minecraft lines
+  share one jar. Note the 1.16 spelling does not survive into 1.17.
 - **NeoForge** and **Forge 1.20.6** carry no refmap at all, so their mixins resolve
   by literal name and the grouping is limited only by the build era.
 
@@ -123,7 +126,7 @@ Build every version, check each JAR, and collect them in `build/releases`:
 
 For smaller CI builds, `./gradlew verifyReleases -PbuildShard=0 -PbuildShardCount=9`
 builds one of nine non-overlapping groups. CI merges the groups and checks that
-all 16 targets were built before publishing. On CI, `FORGE_JAVA_HOME` points at
+all 14 targets were built before publishing. On CI, `FORGE_JAVA_HOME` points at
 a JDK 17 that the aggregator forwards to the ForgeGradle 5/6 child builds while
 the rest of the build runs on Java 21, and additionally installed JDK 8/16/25
 plus the runner's JDK 21 satisfy the per-version toolchains.
@@ -332,12 +335,13 @@ and fails the job. `release` depends on `smoke`, so a jar that does not boot
 cannot be published.
 
 Every row is the newest release of a line, which is where a bad merge shows up
-first; the Fabric rows also cover the oldest release so both ends of a line are
-checked. Forge rows map to MC-Runtime-Test's `lexforge` build and NeoForge rows
-to its `neoforge` build.
+first. The Fabric rows cover both ends of each line, and so does the merged
+1.17.1–1.19.4 Forge line, which also keeps the popular 1.18.2 in between. Forge
+rows map to MC-Runtime-Test's `lexforge` build and NeoForge rows to its
+`neoforge` build.
 
 MC-Runtime-Test supports 1.16.5 and newer, so the 1.14–1.15.2 releases and the
-1.17.1 and 1.20.5 single-release lines are outside the matrix and still need a
+1.20.5 single-release NeoForge line are outside the matrix and still need a
 manual smoke test before a release.
 
 ## Repository layout
