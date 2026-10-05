@@ -66,9 +66,67 @@ jobs:
           path: build/releases/
           if-no-files-found: error
 
+  smoke:
+    needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest and newest release of every merged Fabric range. The build
+        # job only proves a merged jar compiles; booting the real client proves
+        # the mixin can actually be applied there. A range whose endpoints both
+        # boot is the claim the mod ships, so this gates the release below.
+        #
+        # MC-Runtime-Test supports 1.16.5 and newer, so 1.14-1.15.2 and 26.3 are
+        # not listed and still need a manual smoke test before releasing.
+        include:
+          - { mc: '1.16.5',  java: '8',  jar: 'custom-splash-1.14.4-*.jar' }
+          - { mc: '1.19.4',  java: '17', jar: 'custom-splash-1.14.4-*.jar' }
+          - { mc: '1.20',    java: '17', jar: 'custom-splash-1.20-*.jar' }
+          - { mc: '1.21.11', java: '21', jar: 'custom-splash-1.20-*.jar' }
+          - { mc: '26.1.2',  java: '25', jar: 'custom-splash-26.1-*.jar' }
+          - { mc: '26.2',    java: '25', jar: 'custom-splash-26.2-*.jar' }
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      - name: setup java
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+      - name: download build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: jars-*
+          merge-multiple: true
+          path: build/releases/
+      - name: stage the mod jar
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          matches=(${{ matrix.jar }})
+          if [ "${#matches[@]}" -ne 1 ]; then
+            echo "::error::expected one jar matching ${{ matrix.jar }}, found ${#matches[@]}"
+            exit 1
+          fi
+          mkdir -p run/mods
+          cp "${matches[0]}" run/mods/
+          ls -l run/mods
+      - name: run the Minecraft client
+        uses: headlesshq/mc-runtime-test@4.5.1
+        with:
+          mc: ${{ matrix.mc }}
+          modloader: fabric
+          regex: .fabric.
+          mc-runtime-test: fabric
+          java: ${{ matrix.java }}
+          fabric-api: none
+          dummy-assets: true
+          cache-mc: true
+
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: build
+    needs: [build, smoke]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -279,6 +279,22 @@ The tests compile against `--release 8`, matching the lowest Java target in the
 project, so they double as a portability check. `./gradlew build` runs them
 after the release jars are verified, and CI runs them in every job.
 
+### Smoke tests
+
+A merged Fabric jar is only *compiled* by the build job, which says nothing about
+whether its mixin can actually be applied on every release the jar claims. The
+CI `smoke` job therefore launches a real Minecraft client with the built jar,
+using [MC-Runtime-Test](https://github.com/headlesshq/mc-runtime-test) on top of
+[HeadlessMC](https://github.com/headlesshq/headlessmc), and runs the oldest and
+newest release of every merged range. Booting the client reaches the title screen,
+which calls `SplashManager#getSplash`, so a mixin that cannot be applied crashes
+the client and fails the job. `release` depends on `smoke`, so a jar that does
+not boot cannot be published.
+
+MC-Runtime-Test supports 1.16.5 and newer, so the 1.14–1.15.2 releases and 26.3
+are outside it and still need a manual smoke test before a release. Forge and
+NeoForge build one jar per release and are not part of the smoke matrix.
+
 ## Repository layout
 
 - `versions/<era>` — one standalone Fabric project per API era; its single jar covers every release on its `fabric-targets.txt` line
