@@ -86,20 +86,34 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The oldest and newest release of every merged Fabric range. The build
-        # job only proves a merged jar compiles; booting the real client proves
-        # the mixin can actually be applied there. A range whose endpoints both
-        # boot is the claim the mod ships, so this gates the release below.
+        # The build job only proves a merged jar compiles; booting the real client
+        # proves the mixin can actually be applied on the releases the jar claims.
+        # Every row is the newest release of a line, which is where a bad merge
+        # shows up first, and the fabric rows also cover the oldest so both ends of
+        # a line are checked. This gates the release below.
         #
-        # MC-Runtime-Test supports 1.16.5 and newer, so 1.14-1.15.2 and 26.3 are
-        # not listed and still need a manual smoke test before releasing.
+        # MC-Runtime-Test supports 1.16.5 and newer, so the 1.14-1.15.2 releases
+        # are not listed and still need a manual smoke test before releasing.
         include:
-          - { mc: '1.16.5',  java: '8',  jar: 'custom-splash-1.14.4-*.jar' }
-          - { mc: '1.19.4',  java: '17', jar: 'custom-splash-1.14.4-*.jar' }
-          - { mc: '1.20',    java: '17', jar: 'custom-splash-1.20-*.jar' }
-          - { mc: '1.21.11', java: '21', jar: 'custom-splash-1.20-*.jar' }
-          - { mc: '26.1.2',  java: '25', jar: 'custom-splash-26.1-*.jar' }
-          - { mc: '26.2',    java: '25', jar: 'custom-splash-26.2-*.jar' }
+          # Fabric. The jar globs carry the loader flavour ("+mc" rather than
+          # "+forge-mc"), because a bare "custom-splash-1.20-*" would also match
+          # the 1.20-forge jar and the stage step would refuse to pick one.
+          - { mc: '1.16.5',  modloader: 'fabric',   runtime: 'fabric',   java: '8',  jar: 'custom-splash-1.14.4-*+mc*.jar' }
+          - { mc: '1.19.4',  modloader: 'fabric',   runtime: 'fabric',   java: '17', jar: 'custom-splash-1.14.4-*+mc*.jar' }
+          - { mc: '1.20',    modloader: 'fabric',   runtime: 'fabric',   java: '17', jar: 'custom-splash-1.20-*+mc*.jar' }
+          - { mc: '1.21.11', modloader: 'fabric',   runtime: 'fabric',   java: '21', jar: 'custom-splash-1.20-*+mc*.jar' }
+          - { mc: '26.1.2',  modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'custom-splash-26.1-*+mc*.jar' }
+          - { mc: '26.2',    modloader: 'fabric',   runtime: 'fabric',   java: '25', jar: 'custom-splash-26.2-*+mc*.jar' }
+          # Forge, one row per line; the newest release carries the line's claim.
+          - { mc: '1.16.5',  modloader: 'forge',    runtime: 'lexforge', java: '8',  jar: 'custom-splash-1.16.1-forge-*+forge-mc*.jar' }
+          - { mc: '1.18.2',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.18-forge-*+forge-mc*.jar' }
+          - { mc: '1.19.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.19-forge-*+forge-mc*.jar' }
+          - { mc: '1.20.4',  modloader: 'forge',    runtime: 'lexforge', java: '17', jar: 'custom-splash-1.20-forge-*+forge-mc*.jar' }
+          - { mc: '1.20.6',  modloader: 'forge',    runtime: 'lexforge', java: '21', jar: 'custom-splash-1.20.6-forge-*+forge-mc*.jar' }
+          # NeoForge, one row per line.
+          - { mc: '1.21.4',  modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'custom-splash-1.21-neoforge-*+neoforge-mc*.jar' }
+          - { mc: '1.21.11', modloader: 'neoforge', runtime: 'neoforge', java: '21', jar: 'custom-splash-1.21.5-neoforge-*+neoforge-mc*.jar' }
+          - { mc: '26.3',    modloader: 'neoforge', runtime: 'neoforge', java: '25', jar: 'custom-splash-26.1-neoforge-*+neoforge-mc*.jar' }
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
@@ -131,9 +145,10 @@ jobs:
         uses: headlesshq/mc-runtime-test@4.5.1
         with:
           mc: ${{ matrix.mc }}
-          modloader: fabric
-          regex: .fabric.
-          mc-runtime-test: fabric
+          modloader: ${{ matrix.modloader }}
+          # HeadlessMC picks the installed loader by matching its version name.
+          regex: .*${{ matrix.modloader }}.*
+          mc-runtime-test: ${{ matrix.runtime }}
           java: ${{ matrix.java }}
           fabric-api: none
           dummy-assets: true
